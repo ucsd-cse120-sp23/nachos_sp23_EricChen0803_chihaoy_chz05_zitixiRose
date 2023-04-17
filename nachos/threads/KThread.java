@@ -2,6 +2,8 @@ package nachos.threads;
 
 import nachos.machine.*;
 
+import java.util.*;
+
 /**
  * A KThread is a thread that can be used to execute Nachos kernel code. Nachos
  * allows multiple threads to run concurrently.
@@ -203,6 +205,10 @@ public class KThread {
 
 		currentThread.status = statusFinished;
 
+		while(!currentThread.joinQueue.isEmpty()){
+			currentThread.joinQueue.poll().ready();
+		}
+
 		sleep();
 	}
 
@@ -284,6 +290,22 @@ public class KThread {
 		Lib.debug(dbgThread, "Joining to thread: " + toString());
 
 		Lib.assertTrue(this != currentThread);
+		Lib.assertTrue(this.IsCalledOnceInJoin == false);
+
+		this.IsCalledOnceInJoin = true;
+
+		if(this.status == statusFinished){
+			return;
+		}
+
+		//If this thread is not finish, what to do for currentThread.
+		if(this.status != statusFinished){
+			joinQueue.add(currentThread);
+			Machine.interrupt().disable();
+			currentThread.sleep();
+			Machine.interrupt().enable();
+		}
+
 
 	}
 
@@ -398,7 +420,7 @@ public class KThread {
 
 		public void run() {
 			for (int i = 0; i < 5; i++) {
-				System.out.println("*** thread " + which + " looped " + i
+				System.out.println("*** awesome thread " + which + " looped " + i
 						+ " times");
 				currentThread.yield();
 			}
@@ -410,9 +432,51 @@ public class KThread {
 	/**
 	 * Tests whether this module is working.
 	 */
+
+	    
+    public static void alarmTest1() {
+	int durations[] = {1000, 10*1000, 100*1000};
+	long t0, t1;
+
+	for (int d : durations) {
+	    t0 = Machine.timer().getTime();
+	    ThreadedKernel.alarm.waitUntil(d);
+	    t1 = Machine.timer().getTime();
+	    System.out.println ("alarmTest1: waited for " + (t1 - t0) + " ticks");
+	}
+    }
+
+	private static void joinTest1 () {
+	KThread child1 = new KThread( new Runnable () {
+		public void run() {
+		    System.out.println("I (heart) Nachos!");
+		}
+	    });
+	child1.setName("child1").fork();
+
+	// We want the child to finish before we call join.  Although
+	// our solutions to the problems cannot busy wait, our test
+	// programs can!
+
+	for (int i = 0; i < 5; i++) {
+	    System.out.println ("busy...");
+	    KThread.currentThread().yield();
+	}
+
+	child1.join();
+	System.out.println("After joining, child1 should be finished.");
+	System.out.println("is it? " + (child1.status == statusFinished));
+	Lib.assertTrue((child1.status == statusFinished), " Expected child1 to be finished.");
+    }
+
+
+    // Implement more test methods here ...
+
+    // Invoke Alarm.selfTest() from ThreadedKernel.selfTest()
 	public static void selfTest() {
 		Lib.debug(dbgThread, "Enter KThread.selfTest");
-
+		alarmTest1();
+		joinTest1();
 		new KThread(new PingTest(1)).setName("forked thread").fork();
 		new PingTest(0).run();
 	}
@@ -455,6 +519,10 @@ public class KThread {
 	 */
 	private int id = numCreated++;
 
+	private boolean IsCalledOnceInJoin = false;
+
+	private Queue<KThread> joinQueue = new LinkedList<KThread>();
+
 	/** Number of times the KThread constructor was called. */
 	private static int numCreated = 0;
 
@@ -463,6 +531,7 @@ public class KThread {
 	private static KThread currentThread = null;
 
 	private static KThread toBeDestroyed = null;
-
+	
 	private static KThread idleThread = null;
-}
+
+} 

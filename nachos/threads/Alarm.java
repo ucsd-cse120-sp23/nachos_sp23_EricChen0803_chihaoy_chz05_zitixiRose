@@ -1,6 +1,7 @@
 package nachos.threads;
 
 import nachos.machine.*;
+import java.util.*;
 
 /**
  * Uses the hardware timer to provide preemption, and to allow threads to sleep
@@ -14,6 +15,10 @@ public class Alarm {
 	 * <p>
 	 * <b>Note</b>: Nachos will not function correctly with more than one alarm.
 	 */
+
+	//initialize the priority queue
+	PriorityQueue<Pair> pq = new PriorityQueue<Pair>();
+
 	public Alarm() {
 		Machine.timer().setInterruptHandler(new Runnable() {
 			public void run() {
@@ -29,6 +34,12 @@ public class Alarm {
 	 * should be run.
 	 */
 	public void timerInterrupt() {
+		while (!pq.isEmpty() && pq.peek().getValue() <= Machine.timer().getTime()){
+			Machine.interrupt().disable();
+			pq.peek().getKey().ready();
+			Machine.interrupt().enable();
+			pq.poll();
+		}
 		KThread.currentThread().yield();
 	}
 
@@ -46,9 +57,17 @@ public class Alarm {
 	 */
 	public void waitUntil(long x) {
 		// for now, cheat just to get something working (busy waiting is bad)
-		long wakeTime = Machine.timer().getTime() + x;
-		while (wakeTime > Machine.timer().getTime())
-			KThread.yield();
+		if (x > 0){
+			Machine.interrupt().disable();
+			long wakeTime = Machine.timer().getTime() + x;
+			pq.add(new Pair(KThread.currentThread(), wakeTime));
+			while (wakeTime > Machine.timer().getTime()){
+				KThread.currentThread().sleep();
+			}				
+			Machine.interrupt().enable();
+		}
+		return;
+		
 	}
 
         /**
@@ -61,6 +80,35 @@ public class Alarm {
 	 * @param thread the thread whose timer should be cancelled.
 	 */
         public boolean cancel(KThread thread) {
+			for (Pair p : pq){
+				if (p.getKey().equals(thread)){
+					pq.remove(p);
+					return true;
+				}
+			}
 		return false;
+	}
+
+	class Pair implements Comparable<Pair>{
+		private KThread key;
+		private long value;
+		Pair(KThread key, long value){
+			this.key = key;
+		    this.value = value;
+		}
+		public int compareTo(Pair o2) {
+			if (this.value < o2.value)
+				return -1;
+			else if (this.value==o2.value)
+				return 0;
+			else
+				return 1;
+		}
+		public KThread getKey(){
+			return key;
+		}
+		public long getValue(){
+			return value;
+		}
 	}
 }
