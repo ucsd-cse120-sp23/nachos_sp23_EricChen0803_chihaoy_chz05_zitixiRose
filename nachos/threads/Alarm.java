@@ -35,9 +35,9 @@ public class Alarm {
 	 */
 	public void timerInterrupt() {
 		while (!pq.isEmpty() && pq.peek().getValue() <= Machine.timer().getTime()){
-			Machine.interrupt().disable();
+			//Machine.interrupt().disable();
 			pq.peek().getKey().ready();
-			Machine.interrupt().enable();
+			//Machine.interrupt().enable();
 			pq.poll();
 		}
 		KThread.currentThread().yield();
@@ -57,15 +57,17 @@ public class Alarm {
 	 */
 	public void waitUntil(long x) {
 		// for now, cheat just to get something working (busy waiting is bad)
+		Machine.interrupt().disable();
 		if (x > 0){
-			Machine.interrupt().disable();
+			
 			long wakeTime = Machine.timer().getTime() + x;
 			pq.add(new Pair(KThread.currentThread(), wakeTime));
 			while (wakeTime > Machine.timer().getTime()){
 				KThread.currentThread().sleep();
 			}				
-			Machine.interrupt().enable();
+			
 		}
+		Machine.interrupt().enable();
 		return;
 		
 	}

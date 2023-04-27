@@ -15,8 +15,27 @@ public class Future {
      * particular, the constructor should not block as a consequence
      * of invoking <i>function</i>.
      */
+
+    //when we know the function is finished, then we can make it work.
+
+    //private boolean isFinished;
+    private IntSupplier function;
+    private Condition cv;
+    private Lock lock;
+    private int result;
+    private boolean isCompleted;
+
     public Future (IntSupplier function) {
+        lock = new Lock();
+        cv = new Condition(lock);
+        this.function = function;
+        run();
     }
+    private void run(){
+            
+            result = function.getAsInt();
+            isCompleted = true;
+        }
 
     /**
      * Return the result of invoking the <i>function</i> passed in to
@@ -28,6 +47,29 @@ public class Future {
      * threads), and it should always return the same value.
      */
     public int get () {
-	return -1;
+        //int value = function.getAsInt();
+        lock.acquire();
+        while (isCompleted == false){
+            cv.sleep();
+        }
+
+        cv.wakeAll();
+        lock.release();
+	return function.getAsInt();
+    }
+
+    private static void FutureTest1(){
+
+        IntSupplier function = () -> {
+            // return a random integer between 0 and 100 (inclusive)
+            return 1;
+        };
+        Future f = new Future(function);
+        ThreadedKernel.alarm.waitUntil(100);
+        System.out.println(f.get());
+    }
+
+    public static void selfTest(){
+        FutureTest1();
     }
 }

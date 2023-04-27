@@ -291,7 +291,7 @@ public class KThread {
 
 		Lib.assertTrue(this != currentThread);
 		Lib.assertTrue(this.IsCalledOnceInJoin == false);
-
+		Machine.interrupt().disable();
 		this.IsCalledOnceInJoin = true;
 
 		if(this.status == statusFinished){
@@ -301,11 +301,11 @@ public class KThread {
 		//If this thread is not finish, what to do for currentThread.
 		if(this.status != statusFinished){
 			joinQueue.add(currentThread);
-			Machine.interrupt().disable();
+			
 			currentThread.sleep();
-			Machine.interrupt().enable();
+			
 		}
-
+		Machine.interrupt().enable();
 
 	}
 
