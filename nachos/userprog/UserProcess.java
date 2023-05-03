@@ -6,6 +6,7 @@ import nachos.userprog.*;
 import nachos.vm.*;
 
 import java.io.EOFException;
+import java.util.*;
 
 /**
  * Encapsulates the state of a user process that is not contained in its user
@@ -23,11 +24,17 @@ public class UserProcess {
 	/**
 	 * Allocate a new process.
 	 */
+	private ArrayList<OpenFile> fileDescriptor;
 	public UserProcess() {
 		int numPhysPages = Machine.processor().getNumPhysPages();
 		pageTable = new TranslationEntry[numPhysPages];
 		for (int i = 0; i < numPhysPages; i++)
 			pageTable[i] = new TranslationEntry(i, i, true, false, false, false);
+		
+		fileDescriptor = new ArrayList<OpenFile>(16);
+		fileDescriptor.set(0, UserKernel.console.openForReading());
+		fileDescriptor.set(1, UserKernel.console.openForWriting());
+		
 	}
 
 	/**
@@ -358,6 +365,82 @@ public class UserProcess {
 		return 0;
 	}
 
+	private int handleCreate(int name){
+		//read from virtual memory
+		String virtualmemoryString = readVirtualMemoryString(name, 256);
+		if (virtualmemoryString == null){
+			return -1;
+		}
+		OpenFile openfile = ThreadedKernel.fileSystem.open(virtualmemoryString, true);
+
+		if (openfile == null){
+			return -1;
+		}
+
+		int fd_entry = 0;
+		for (int i = 0; i < 16; i++){
+			if (fileDescriptor.get(i) != null){
+				fd_entry = i;
+				fileDescriptor.set(i, openfile);
+			}
+		}
+
+
+		return fd_entry;
+	} 
+
+	private int handleOpen(int name){
+		String virtualmemoryString = readVirtualMemoryString(name, 256);
+		if (virtualmemoryString == null){
+			return -1;
+		}
+		OpenFile openfile = ThreadedKernel.fileSystem.open(virtualmemoryString, false);
+
+		if (openfile == null){
+			return -1;
+		}
+
+		int fd_entry = 0;
+		for (int i = 0; i < 16; i++){
+			if (fileDescriptor.get(i) != null){
+				fd_entry = i;
+				fileDescriptor.set(i, openfile);
+			}
+		}
+
+
+		return fd_entry;
+	}
+
+
+	private int handleClose(int fd){
+		if (fd < 0 || fd > 15){
+			return -1;
+		}
+
+		if (fileDescriptor.get(fd) == null){
+			return -1;
+		}
+
+		OpenFile openfile = fileDescriptor.get(fd);
+		openfile.close();
+		fileDescriptor.remove(fd);
+
+		return 0;
+	}
+
+	private int handleUnlink(int name){
+		String virtualmemoryString = readVirtualMemoryString(name, 256);
+		if (virtualmemoryString == null){
+			return -1;
+		}
+
+		if (!ThreadedKernel.fileSystem.remove(virtualmemoryString)){
+			return -1;
+		}
+		return 0;
+	}
+
 	/**
 	 * Handle the exit() system call.
 	 */
@@ -446,6 +529,14 @@ public class UserProcess {
 			return handleHalt();
 		case syscallExit:
 			return handleExit(a0);
+		case syscallCreate:
+			return handleCreate(a0);
+		case syscallOpen:
+			return handleOpen(a0);
+		case syscallUnlink:
+			return handleUnlink(a0);
+		case syscallClose:
+			return handleClose(a0);
 
 		default:
 			Lib.debug(dbgProcess, "Unknown syscall " + syscall);
