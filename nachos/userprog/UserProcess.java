@@ -441,6 +441,128 @@ public class UserProcess {
 		return 0;
 	}
 
+	private int handleRead(int fd, int buffer_address, int count){
+		//check the count, is it possible that the count is 0?
+		if (count <= 0){
+			return -1;
+		}
+
+		//check the buffer_address
+		if (buffer_address < 0){
+			return -1;
+		}
+		//check the file Descriptor part.
+		if (fd < 0 || fd > 15){
+			return -1;
+		}
+
+		if (fileDescriptor.get(fd) == null){
+			return -1;
+		}
+
+		//return how many bytes of readBytes we have.
+		int transferredBytes = 0;
+		int readBytes = 0;
+		int writeBytes = 0;
+		int amount = 0;
+
+		//That's the buffer bytes that we use for storing read bytes for every time.
+		byte[] buf = new byte[pageSize];
+
+		while(count > 0){
+			if (count > pageSize){
+				amount = count;
+			}else {
+				amount = pageSize;
+			}
+			// if the file will reach to the end before amount of data, it will read as much as possible bytes in the file.
+			//Thus, the readBytes is not equal to the amount for some time.
+			readBytes = fileDescriptor.get(fd).read(buf, 0, amount);
+			if (readBytes == -1)
+				return -1;
+			
+			writeBytes = writeVirtualMemory(buffer_address, buf, 0, readBytes);
+
+			//we are not successfully transfer data.
+			if (writeBytes != readBytes){
+				return -1;
+			}
+			
+			//update count, buffer_address, transferredBytes.
+
+			count -= amount;
+			transferredBytes += readBytes;
+			buffer_address += amount;
+
+			// means we already read to the end of the file.
+			if (readBytes < amount){
+				break;
+			}
+
+		}
+		return transferredBytes;
+	}
+
+
+	private int handleWrite(int fd, int buffer_address, int count){
+		//check the count, is it possible that the count is 0?
+		if (count <= 0){
+			return -1;
+		}
+
+		//check the buffer_address
+		if (buffer_address < 0){
+			return -1;
+		}
+		//check the file Descriptor part.
+		if (fd < 0 || fd > 15){
+			return -1;
+		}
+
+		if (fileDescriptor.get(fd) == null){
+			return -1;
+		}
+
+		//return how many bytes of readBytes we have.
+		int transferredBytes = 0;
+		int readBytes = 0;
+		int writeBytes = 0;
+		int amount = 0;
+
+		//That's the buffer bytes that we use for storing read bytes for every time.
+		byte[] buf = new byte[pageSize];
+
+		while(count > 0){
+			if (count > pageSize){
+				amount = count;
+			}else {
+				amount = pageSize;
+			}
+			readBytes = readVirtualMemory(buffer_address, buf, 0, readBytes);
+
+			writeBytes = fileDescriptor.get(fd).write(buf, 0, amount);
+			if (writeBytes == -1)
+				return -1;
+		
+			//we are not successfully transfer data.
+			if (writeBytes != readBytes){
+				return -1;
+			}
+			
+			//update count, buffer_address, transferredBytes.
+			count -= amount;
+			transferredBytes += writeBytes;
+			buffer_address += amount;
+
+			// means we already reach to the end of the file.
+			if (writeBytes < amount){
+				break;
+			}
+
+		}
+		return transferredBytes;
+	}
+
 	/**
 	 * Handle the exit() system call.
 	 */
@@ -537,6 +659,10 @@ public class UserProcess {
 			return handleUnlink(a0);
 		case syscallClose:
 			return handleClose(a0);
+		case syscallRead:
+			return handleRead(a0, a1, a2);
+		case syscallWrite:
+			return handleWrite(a0, a1, a2);
 
 		default:
 			Lib.debug(dbgProcess, "Unknown syscall " + syscall);
