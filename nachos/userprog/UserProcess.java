@@ -31,7 +31,7 @@ public class UserProcess {
 		for (int i = 0; i < numPhysPages; i++)
 			pageTable[i] = new TranslationEntry(i, i, true, false, false, false);
 		
-		fileDescriptor = new ArrayList<OpenFile>(16);
+		fileDescriptor = new ArrayList<OpenFile>(Collections.nCopies(16, null));
 		fileDescriptor.set(0, UserKernel.console.openForReading());
 		fileDescriptor.set(1, UserKernel.console.openForWriting());
 		
@@ -379,9 +379,10 @@ public class UserProcess {
 
 		int fd_entry = 0;
 		for (int i = 0; i < 16; i++){
-			if (fileDescriptor.get(i) != null){
+			if (fileDescriptor.get(i) == null){
 				fd_entry = i;
 				fileDescriptor.set(i, openfile);
+				break;
 			}
 		}
 
@@ -402,9 +403,11 @@ public class UserProcess {
 
 		int fd_entry = 0;
 		for (int i = 0; i < 16; i++){
-			if (fileDescriptor.get(i) != null){
+			System.out.println("The length of fd is: " + fileDescriptor.size());
+			if (fileDescriptor.get(i) == null){
 				fd_entry = i;
 				fileDescriptor.set(i, openfile);
+				break;
 			}
 		}
 
@@ -424,7 +427,7 @@ public class UserProcess {
 
 		OpenFile openfile = fileDescriptor.get(fd);
 		openfile.close();
-		fileDescriptor.remove(fd);
+		fileDescriptor.set(fd, null);
 
 		return 0;
 	}
@@ -443,7 +446,7 @@ public class UserProcess {
 
 	private int handleRead(int fd, int buffer_address, int count){
 		//check the count, is it possible that the count is 0?
-		if (count <= 0){
+		if (count < 0){
 			return -1;
 		}
 
@@ -470,7 +473,7 @@ public class UserProcess {
 		byte[] buf = new byte[pageSize];
 
 		while(count > 0){
-			if (count > pageSize){
+			if (count < pageSize){
 				amount = count;
 			}else {
 				amount = pageSize;
@@ -484,9 +487,9 @@ public class UserProcess {
 			writeBytes = writeVirtualMemory(buffer_address, buf, 0, readBytes);
 
 			//we are not successfully transfer data.
-			if (writeBytes != readBytes){
-				return -1;
-			}
+			// if (writeBytes != readBytes){
+			// 	return -1;
+			// }
 			
 			//update count, buffer_address, transferredBytes.
 
@@ -505,13 +508,14 @@ public class UserProcess {
 
 
 	private int handleWrite(int fd, int buffer_address, int count){
+		//System.out.println("----------------------------------------");
 		//check the count, is it possible that the count is 0?
-		if (count <= 0){
+		if (count < 0){
 			return -1;
 		}
 
 		//check the buffer_address
-		if (buffer_address < 0){
+		if (buffer_address < 0 || buffer_address >= (numPages * pageSize)){
 			return -1;
 		}
 		//check the file Descriptor part.
@@ -531,28 +535,36 @@ public class UserProcess {
 
 		//That's the buffer bytes that we use for storing read bytes for every time.
 		byte[] buf = new byte[pageSize];
+		int byte_count = count;
 
-		while(count > 0){
-			if (count > pageSize){
-				amount = count;
-			}else {
+		while(byte_count > 0){
+			if (byte_count < pageSize){
+				amount = byte_count;
+			}else{
 				amount = pageSize;
 			}
-			readBytes = readVirtualMemory(buffer_address, buf, 0, readBytes);
+			readBytes = readVirtualMemory(buffer_address, buf, 0, amount);
+			// if (readBytes == 0){
+			// 	System.out.println("It has error in vm.");
+			// }
+			// System.out.println("Read Bytes is: " + readBytes);
 
 			writeBytes = fileDescriptor.get(fd).write(buf, 0, amount);
+			//System.out.println("The WB is: " + writeBytes);
 			if (writeBytes == -1)
 				return -1;
 		
 			//we are not successfully transfer data.
-			if (writeBytes != readBytes){
-				return -1;
-			}
+			// if (writeBytes != readBytes){
+			// 	return -1;
+			// }
 			
 			//update count, buffer_address, transferredBytes.
-			count -= amount;
+			//System.out.println("before updating, the count is: " + byte_count);
+			byte_count -= amount;
 			transferredBytes += writeBytes;
 			buffer_address += amount;
+			//System.out.println("Now, the count is: " + byte_count);
 
 			// means we already reach to the end of the file.
 			if (writeBytes < amount){
