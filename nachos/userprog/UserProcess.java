@@ -25,6 +25,7 @@ public class UserProcess {
 	 * Allocate a new process.
 	 */
 	private ArrayList<OpenFile> fileDescriptor;
+	private LinkedList<Integer> freeList;
 	public UserProcess() {
 		int numPhysPages = Machine.processor().getNumPhysPages();
 		pageTable = new TranslationEntry[numPhysPages];
@@ -34,6 +35,7 @@ public class UserProcess {
 		fileDescriptor = new ArrayList<OpenFile>(Collections.nCopies(16, null));
 		fileDescriptor.set(0, UserKernel.console.openForReading());
 		fileDescriptor.set(1, UserKernel.console.openForWriting());
+		freeList = UserKernel.freeList;
 		
 	}
 
@@ -151,17 +153,46 @@ public class UserProcess {
 	public int readVirtualMemory(int vaddr, byte[] data, int offset, int length) {
 		Lib.assertTrue(offset >= 0 && length >= 0
 				&& offset + length <= data.length);
+		
+		int transferredBytes = 0;
+		int amount = 0;
 
+		// byte[] memory = Machine.processor().getMemory();
+
+		// // for now, just assume that virtual addresses equal physical addresses
+		// if (vaddr < 0 || vaddr >= memory.length)
+		// 	return 0;
+
+		// int amount = Math.min(length, memory.length - vaddr);
+		// System.arraycopy(memory, vaddr, data, offset, amount);
 		byte[] memory = Machine.processor().getMemory();
+		while(length > 0){
+			int vpn = Processor.pageFromAddress(vaddr);
+			int vpn_offset = Processor.offsetFromAddress(vaddr);
 
-		// for now, just assume that virtual addresses equal physical addresses
-		if (vaddr < 0 || vaddr >= memory.length)
-			return 0;
+			if (pageTable[vpn] == null){
+				return 0;
+			}
+			int ppn = pageTable[vpn].ppn;
+			int physcial_address = Processor.makeAddress(ppn, vpn_offset);
 
-		int amount = Math.min(length, memory.length - vaddr);
-		System.arraycopy(memory, vaddr, data, offset, amount);
+			amount = Math.min(length, pageSize);
 
-		return amount;
+			if (physcial_address < 0 || physcial_address >= memory.length)
+				return 0;
+
+			System.arraycopy(memory, physcial_address, data, offset, amount);
+
+			length -= amount;
+			transferredBytes += amount;
+			vaddr += amount;
+			offset += amount;
+			
+			//how about the offset, very confused on this part.
+		}
+		
+
+		return transferredBytes;
 	}
 
 	/**
@@ -194,16 +225,51 @@ public class UserProcess {
 		Lib.assertTrue(offset >= 0 && length >= 0
 				&& offset + length <= data.length);
 
+		// byte[] memory = Machine.processor().getMemory();
+
+		// // for now, just assume that virtual addresses equal physical addresses
+		// if (vaddr < 0 || vaddr >= memory.length)
+		// 	return 0;
+
+		// int amount = Math.min(length, memory.length - vaddr);
+		// System.arraycopy(data, offset, memory, vaddr, amount);
+
+		// return amount;
+		int transferredBytes = 0;
+		int amount = 0;
+
 		byte[] memory = Machine.processor().getMemory();
+		while(length > 0){
+			int vpn = Processor.pageFromAddress(vaddr);
+			int vpn_offset = Processor.offsetFromAddress(vaddr);
 
-		// for now, just assume that virtual addresses equal physical addresses
-		if (vaddr < 0 || vaddr >= memory.length)
-			return 0;
+			if (!pageTable[vpn].readOnly){
+				return 0;
+			}
 
-		int amount = Math.min(length, memory.length - vaddr);
-		System.arraycopy(data, offset, memory, vaddr, amount);
+			if (pageTable[vpn] == null){
+				return 0;
+			}
+			int ppn = pageTable[vpn].ppn;
+			int physcial_address = Processor.makeAddress(ppn, vpn_offset);
 
-		return amount;
+			amount = Math.min(length, pageSize);
+
+			if (physcial_address < 0 || physcial_address >= memory.length)
+				return 0;
+
+			System.arraycopy(data, offset, memory, vaddr, amount);
+
+			length -= amount;
+			transferredBytes += amount;
+			vaddr += amount;
+			offset += amount;
+			
+			//how about the offset, very confused on this part.
+		}
+		
+
+		return transferredBytes;
 	}
 
 	/**
@@ -301,26 +367,40 @@ public class UserProcess {
 	 * @return <tt>true</tt> if the sections were successfully loaded.
 	 */
 	protected boolean loadSections() {
-		if (numPages > Machine.processor().getNumPhysPages()) {
+		UserKernel.lock.acquire();
+		if (numPages > freeList.size()) {
 			coff.close();
 			Lib.debug(dbgProcess, "\tinsufficient physical memory");
+			UserKernel.lock.release();
 			return false;
 		}
+		pageTable = new TranslationEntry[numPages];
+		// for (int vpn = 0; vpn < numPages; vpn++){
+		// 	int ppn = freeList.get(vpn);
+		// 	pageTable[vpn] = new TranslationEntry(vpn, ppn, true, false, false, false);
+		// }
 
-		// load sections
+		
+		// load sections, still confused on how this one works.
 		for (int s = 0; s < coff.getNumSections(); s++) {
 			CoffSection section = coff.getSection(s);
 
 			Lib.debug(dbgProcess, "\tinitializing " + section.getName()
 					+ " section (" + section.getLength() + " pages)");
-
+			//need to think about the section, if one section is readonly, what the pageTable readonly will be.
+			
+			boolean readOnly = section.isReadOnly();
+			// for (int vpn = 0; vpn < numPages; vpn++){
+			// 	pageTable[vpn].readOnly = readOnly;
+			// }
 			for (int i = 0; i < section.getLength(); i++) {
 				int vpn = section.getFirstVPN() + i;
-
-				// for now, just assume virtual addresses=physical addresses
-				section.loadPage(i, vpn);
+				int ppn = freeList.remove();
+				pageTable[vpn] = new TranslationEntry(vpn, ppn, true, readOnly, false, false);
+				section.loadPage(i, pageTable[vpn].ppn);
 			}
 		}
+		UserKernel.lock.release();
 
 		return true;
 	}
@@ -329,6 +409,13 @@ public class UserProcess {
 	 * Release any resources allocated by <tt>loadSections()</tt>.
 	 */
 	protected void unloadSections() {
+		UserKernel.lock.acquire();
+
+		for (int i = 0; i < numPages; i++){
+			freeList.add(pageTable[i].ppn);
+		}
+
+		UserKernel.lock.release();
 	}
 
 	/**
@@ -445,6 +532,7 @@ public class UserProcess {
 	}
 
 	private int handleRead(int fd, int buffer_address, int count){
+		
 		if (count < 0){
 			return -1;
 		}
@@ -490,9 +578,9 @@ public class UserProcess {
 			writeBytes = writeVirtualMemory(buffer_address, buf, 0, readBytes);
 
 			//we are not successfully transfer data.
-			// if (writeBytes != readBytes){
-			// 	return -1;
-			// }
+			if (writeBytes != readBytes){
+				return -1;
+			}
 			
 			//update count, buffer_address, transferredBytes.
 
@@ -511,7 +599,7 @@ public class UserProcess {
 
 
 	private int handleWrite(int fd, int buffer_address, int count){
-		//System.out.println("----------------------------------------");
+		System.out.println("----------------------------------------");
 		//check the count, is it possible that the count is 0?
 		if (count < 0){
 			return -1;
@@ -533,7 +621,7 @@ public class UserProcess {
 		if (fileDescriptor.get(fd) == null){
 			return -1;
 		}
-
+		System.out.println("after edge case in write.");
 		//return how many bytes of readBytes we have.
 		int transferredBytes = 0;
 		int readBytes = 0;
@@ -554,7 +642,7 @@ public class UserProcess {
 			// if (readBytes == 0){
 			// 	System.out.println("It has error in vm.");
 			// }
-			// System.out.println("Read Bytes is: " + readBytes);
+			//System.out.println("Read Bytes is: " + readBytes);
 
 			writeBytes = fileDescriptor.get(fd).write(buf, 0, amount);
 			//System.out.println("The WB is: " + writeBytes);
@@ -562,9 +650,9 @@ public class UserProcess {
 				return -1;
 		
 			//we are not successfully transfer data.
-			// if (writeBytes != readBytes){
-			// 	return -1;
-			// }
+			if (writeBytes != readBytes){
+				return -1;
+			}
 			
 			//update count, buffer_address, transferredBytes.
 			//System.out.println("before updating, the count is: " + byte_count);
@@ -699,7 +787,7 @@ public class UserProcess {
 	 */
 	public void handleException(int cause) {
 		Processor processor = Machine.processor();
-
+		System.out.println("the cause is " + cause);
 		switch (cause) {
 		case Processor.exceptionSyscall:
 			int result = handleSyscall(processor.readRegister(Processor.regV0),
