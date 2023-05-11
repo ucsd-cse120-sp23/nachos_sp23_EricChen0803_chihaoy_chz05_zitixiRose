@@ -445,13 +445,16 @@ public class UserProcess {
 	}
 
 	private int handleRead(int fd, int buffer_address, int count){
-		//check the count, is it possible that the count is 0?
 		if (count < 0){
 			return -1;
 		}
 
 		//check the buffer_address
-		if (buffer_address < 0){
+		if (buffer_address < 0 || buffer_address >= (numPages * pageSize)){
+			return -1;
+		}
+
+		if ((buffer_address + count) >= (numPages * pageSize)){
 			return -1;
 		}
 		//check the file Descriptor part.
@@ -516,6 +519,10 @@ public class UserProcess {
 
 		//check the buffer_address
 		if (buffer_address < 0 || buffer_address >= (numPages * pageSize)){
+			return -1;
+		}
+
+		if ((buffer_address + count) >= (numPages * pageSize)){
 			return -1;
 		}
 		//check the file Descriptor part.
