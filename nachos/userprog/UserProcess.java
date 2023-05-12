@@ -156,7 +156,6 @@ public class UserProcess {
 		
 		int transferredBytes = 0;
 		int amount = 0;
-
 		// byte[] memory = Machine.processor().getMemory();
 
 		// // for now, just assume that virtual addresses equal physical addresses
@@ -237,17 +236,20 @@ public class UserProcess {
 		// return amount;
 		int transferredBytes = 0;
 		int amount = 0;
+		System.out.println("The length (readBytes) is: " + length);
 
 		byte[] memory = Machine.processor().getMemory();
 		while(length > 0){
 			int vpn = Processor.pageFromAddress(vaddr);
 			int vpn_offset = Processor.offsetFromAddress(vaddr);
 
-			if (!pageTable[vpn].readOnly){
+			if (pageTable[vpn].readOnly){
+				//System.out.println("The reason is the page table is read only");
 				return 0;
 			}
 
 			if (pageTable[vpn] == null){
+				//System.out.println("The reason is the page is null.");
 				return 0;
 			}
 			int ppn = pageTable[vpn].ppn;
@@ -255,9 +257,10 @@ public class UserProcess {
 
 			amount = Math.min(length, pageSize);
 
-			if (physcial_address < 0 || physcial_address >= memory.length)
+			if (physcial_address < 0 || physcial_address >= memory.length){
+				//System.out.println("The reason is the pm is invalid.");
 				return 0;
-
+			}
 			System.arraycopy(data, offset, memory, vaddr, amount);
 
 			length -= amount;
@@ -267,7 +270,7 @@ public class UserProcess {
 			
 			//how about the offset, very confused on this part.
 		}
-		
+		System.out.println("The transferred Bytes(write bytes): " + transferredBytes);
 
 		return transferredBytes;
 	}
@@ -579,6 +582,7 @@ public class UserProcess {
 
 			//we are not successfully transfer data.
 			if (writeBytes != readBytes){
+				//System.out.println("That's the reason that fail in the writeVirtualMemory: writeBytes != readBytes.");
 				return -1;
 			}
 			
