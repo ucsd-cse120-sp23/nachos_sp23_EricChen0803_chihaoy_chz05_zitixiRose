@@ -14,7 +14,7 @@ import nachos.security.*;
  * <p>
  * The <tt>Processor</tt> API is re-entrant, so a single simulated processor can
  * be shared by multiple user threads.
- * 
+ *
  * <p>
  * An instance of a <tt>Processor</tt> also includes pages of physical memory
  * accessible to user programs, the size of which is fixed by the constructor.
@@ -310,8 +310,22 @@ public final class Processor {
 
 		// if not using a TLB, then the vpn is an index into the table
 		if (!usingTLB) {
+			// if (translations == null){
+			// 	System.out.println("translation is null");
+			// }
+			// if (vpn >= translations.length){
+			// 	System.out.println("vpn > length");
+			// }
+			// if (translations[vpn] == null){
+			// 	System.out.println("translation vpn is null");
+			// }
+			// if (!translations[vpn].valid){
+			// 	System.out.println("translation vpn is invalid");
+			// }
+			//System.out.println("The vpn is: " + vpn);
 			if (translations == null || vpn >= translations.length
 					|| translations[vpn] == null || !translations[vpn].valid) {
+				//System.out.println("The question is page fault: we all know it.");
 				privilege.stats.numPageFaults++;
 				Lib.debug(dbgProcessor, "\t\tpage fault");
 				throw new MipsException(exceptionPageFault, vaddr);

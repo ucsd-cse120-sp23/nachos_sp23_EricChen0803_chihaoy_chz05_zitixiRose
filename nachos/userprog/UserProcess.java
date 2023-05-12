@@ -375,10 +375,10 @@ public class UserProcess {
 			return false;
 		}
 		pageTable = new TranslationEntry[numPages];
-		// for (int vpn = 0; vpn < numPages; vpn++){
-		// 	int ppn = freeList.get(vpn);
-		// 	pageTable[vpn] = new TranslationEntry(vpn, ppn, true, false, false, false);
-		// }
+		for (int vpn = 0; vpn < numPages; vpn++){
+			int ppn = freeList.get(vpn);
+			pageTable[vpn] = new TranslationEntry(vpn, ppn, true, false, false, false);
+		}
 
 		
 		// load sections, still confused on how this one works.
@@ -387,7 +387,7 @@ public class UserProcess {
 
 			Lib.debug(dbgProcess, "\tinitializing " + section.getName()
 					+ " section (" + section.getLength() + " pages)");
-			//need to think about the section, if one section is readonly, what the pageTable readonly will be.
+			//need to think about the section, ifz one section is readonly, what the pageTable readonly will be.
 			
 			boolean readOnly = section.isReadOnly();
 			// for (int vpn = 0; vpn < numPages; vpn++){
@@ -599,7 +599,7 @@ public class UserProcess {
 
 
 	private int handleWrite(int fd, int buffer_address, int count){
-		System.out.println("----------------------------------------");
+		//System.out.println("----------------------------------------");
 		//check the count, is it possible that the count is 0?
 		if (count < 0){
 			return -1;
@@ -621,7 +621,7 @@ public class UserProcess {
 		if (fileDescriptor.get(fd) == null){
 			return -1;
 		}
-		System.out.println("after edge case in write.");
+		//System.out.println("after edge case in write.");
 		//return how many bytes of readBytes we have.
 		int transferredBytes = 0;
 		int readBytes = 0;
@@ -787,7 +787,7 @@ public class UserProcess {
 	 */
 	public void handleException(int cause) {
 		Processor processor = Machine.processor();
-		System.out.println("the cause is " + cause);
+		//System.out.println("the cause is " + cause);
 		switch (cause) {
 		case Processor.exceptionSyscall:
 			int result = handleSyscall(processor.readRegister(Processor.regV0),

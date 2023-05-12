@@ -89,7 +89,10 @@ public class UserKernel extends ThreadedKernel {
 		Lib.assertTrue(KThread.currentThread() instanceof UThread);
 
 		UserProcess process = ((UThread) KThread.currentThread()).process;
+		//System.out.println("the reg cause is: " + Processor.regCause);
 		int cause = Machine.processor().readRegister(Processor.regCause);
+		//System.out.println("The readRegister result cause is: " + cause);
+		//cause = 0;
 		process.handleException(cause);
 	}
 
