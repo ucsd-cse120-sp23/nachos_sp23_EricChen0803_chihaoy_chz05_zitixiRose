@@ -29,7 +29,7 @@ public class UserProcess {
 	public UserProcess() {
 		int numPhysPages = Machine.processor().getNumPhysPages();
 		childProcessMap = new HashMap<Integer, UserProcess>();
-		pid = currentPID;
+		pid = UserKernel.currentPID;
 		pageTable = new TranslationEntry[numPhysPages];
 		for (int i = 0; i < numPhysPages; i++)
 			pageTable[i] = new TranslationEntry(i, i, true, false, false, false);
@@ -38,7 +38,7 @@ public class UserProcess {
 		fileDescriptor.set(0, UserKernel.console.openForReading());
 		fileDescriptor.set(1, UserKernel.console.openForWriting());
 		freeList = UserKernel.freeList;
-		currentPID = currentPID+1;
+		UserKernel.currentPID = UserKernel.currentPID+1;
 	}
 
 	/**
@@ -865,6 +865,4 @@ public class UserProcess {
 	private static final int pageSize = Processor.pageSize;
 
 	private static final char dbgProcess = 'a';
-
-	private static int currentPID = 0;
 }
