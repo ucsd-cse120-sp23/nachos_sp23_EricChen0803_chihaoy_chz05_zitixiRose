@@ -28,6 +28,8 @@ public class UserProcess {
 	private LinkedList<Integer> freeList;
 	public UserProcess() {
 		int numPhysPages = Machine.processor().getNumPhysPages();
+		childProcessMap = new HashMap<Integer, UserProcess>();
+		pid = currentPID;
 		pageTable = new TranslationEntry[numPhysPages];
 		for (int i = 0; i < numPhysPages; i++)
 			pageTable[i] = new TranslationEntry(i, i, true, false, false, false);
@@ -36,7 +38,7 @@ public class UserProcess {
 		fileDescriptor.set(0, UserKernel.console.openForReading());
 		fileDescriptor.set(1, UserKernel.console.openForWriting());
 		freeList = UserKernel.freeList;
-		
+		currentPID = currentPID+1;
 	}
 
 	/**
@@ -448,6 +450,9 @@ public class UserProcess {
 	 * Handle the halt() system call.
 	 */
 	private int handleHalt() {
+		if(pid!=0){
+			return -1;
+		}
 
 		Machine.halt();
 
@@ -675,6 +680,26 @@ public class UserProcess {
 	}
 
 	/**
+	 * Handle the join() system call.
+	 */
+	private int handleJoin(int processID, int status_addr){
+		if(this.childProcessMap.get(processID)==null){
+			return -1;
+		}
+		UThread childProcess = childProcessMap.get(processID).thread;
+		childProcess.join();
+		byte[] array = new byte[4];
+		Lib.bytesFromInt(array, 0, childReturnStatus);
+		writeVirtualMemory(status_addr, array);
+		if (childReturnStatus==0){
+			return 1;
+		}
+		else{
+			return 0;
+		}
+	}
+
+	/**
 	 * Handle the exit() system call.
 	 */
 	private int handleExit(int status) {
@@ -764,6 +789,8 @@ public class UserProcess {
 			return handleExit(a0);
 		case syscallCreate:
 			return handleCreate(a0);
+		case syscallJoin:
+			return handleJoin(a0, a1);
 		case syscallOpen:
 			return handleOpen(a0);
 		case syscallUnlink:
@@ -829,7 +856,15 @@ public class UserProcess {
 
 	private int argc, argv;
 
+	private int pid;
+
+	private HashMap<Integer, UserProcess> childProcessMap;
+
+	private int childReturnStatus = -1;
+
 	private static final int pageSize = Processor.pageSize;
 
 	private static final char dbgProcess = 'a';
+
+	private static int currentPID = 0;
 }
