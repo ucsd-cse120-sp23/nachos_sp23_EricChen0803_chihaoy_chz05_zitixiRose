@@ -693,8 +693,8 @@ public class UserProcess {
 	private int handleJoin(int processID, int status_addr){
 		UserKernel.lock.acquire();
 		if(this.childid_to_childprocess.get(processID)==null){
-			return -1;
 			UserKernel.lock.release();
+			return -1;
 		}
 		UThread childProcess = childid_to_childprocess.get(processID).thread;
 		childProcess.join();
@@ -702,12 +702,12 @@ public class UserProcess {
 		Lib.bytesFromInt(array, 0, childReturnStatus);
 		writeVirtualMemory(status_addr, array);
 		if (childReturnStatus==0){
-			return 1;
 			UserKernel.lock.release();
+			return 1;
 		}
 		else{
-			return 0;
 			UserKernel.lock.release();
+			return 0;
 		}
 	}
 
