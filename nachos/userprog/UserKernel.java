@@ -140,4 +140,6 @@ public class UserKernel extends ThreadedKernel {
 
 	public static LinkedList<Integer> freeList;
 	public static Lock lock;
+
+	public static int currentPID = 0;
 }
