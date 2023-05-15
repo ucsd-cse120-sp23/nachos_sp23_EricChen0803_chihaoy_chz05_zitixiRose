@@ -24,12 +24,18 @@ public class UserProcess {
 	/**
 	 * Allocate a new process.
 	 */
+	private UserProcess parent;
+	private LinkedList <Integer> ChildrenPID;
+	private HashMap <Integer,UserProcess> childid_to_childprocess;
+	public int current_process_id;
 	private ArrayList<OpenFile> fileDescriptor;
 	private LinkedList<Integer> freeList;
 	public UserProcess() {
+		UserKernel.Processlock.acquire();
+		current_process_id = UserKernel.next_process_id;
+		UserKernel.next_process_id ++;
+		UserKernel.Processlock.release();
 		int numPhysPages = Machine.processor().getNumPhysPages();
-		childProcessMap = new HashMap<Integer, UserProcess>();
-		pid = UserKernel.currentPID;
 		pageTable = new TranslationEntry[numPhysPages];
 		for (int i = 0; i < numPhysPages; i++)
 			pageTable[i] = new TranslationEntry(i, i, true, false, false, false);
@@ -37,8 +43,10 @@ public class UserProcess {
 		fileDescriptor = new ArrayList<OpenFile>(Collections.nCopies(16, null));
 		fileDescriptor.set(0, UserKernel.console.openForReading());
 		fileDescriptor.set(1, UserKernel.console.openForWriting());
+		childid_to_childprocess = new HashMap <Integer,UserProcess>();
+		ChildrenPID = new LinkedList <Integer> ();
 		freeList = UserKernel.freeList;
-		UserKernel.currentPID = UserKernel.currentPID+1;
+		
 	}
 
 	/**
@@ -450,7 +458,7 @@ public class UserProcess {
 	 * Handle the halt() system call.
 	 */
 	private int handleHalt() {
-		if(pid!=0){
+		if(current_process_id!=0){
 			return -1;
 		}
 
@@ -683,25 +691,57 @@ public class UserProcess {
 	 * Handle the join() system call.
 	 */
 	private int handleJoin(int processID, int status_addr){
-		if(this.childProcessMap.get(processID)==null){
+		UserKernel.lock.acquire();
+		if(this.childid_to_childprocess.get(processID)==null){
 			return -1;
+			UserKernel.lock.release();
 		}
-		UThread childProcess = childProcessMap.get(processID).thread;
+		UThread childProcess = childid_to_childprocess.get(processID).thread;
 		childProcess.join();
 		byte[] array = new byte[4];
 		Lib.bytesFromInt(array, 0, childReturnStatus);
 		writeVirtualMemory(status_addr, array);
 		if (childReturnStatus==0){
 			return 1;
+			UserKernel.lock.release();
 		}
 		else{
 			return 0;
+			UserKernel.lock.release();
 		}
 	}
 
 	/**
-	 * Handle the exit() system call.
+	 * Handle the exec() system call.
 	 */
+	private int handleExec(int vaddr,int argc,int argv){
+		String filename = readVirtualMemoryString(vaddr,256);	//get the file name by start reading from the first address of the filename
+//Still need to handle corner cases...wait to be done
+		//System.out.println(filename);
+		String[] arguments = new String[argc];
+		byte [] temp = new byte [4];
+		for (int i = 0; i < argc; i++){
+			
+			readVirtualMemory(argv+i*4,temp);
+			int addr = Lib.bytesToInt(temp,0);
+			//System.out.println(readVirtualMemoryString(addr,256));
+			arguments[i] = readVirtualMemoryString(addr,256);
+		}
+		UserProcess child = UserProcess.newUserProcess();
+		child.parent = this;
+		if (child.execute(filename,arguments)){
+			//userKernel.numProcessLock.acquire();
+			
+			this.ChildrenPID.add(child.current_process_id);
+			childid_to_childprocess.put(child.current_process_id,child);
+			return child.current_process_id;
+		}
+		UserKernel.Processlock.acquire();
+		UserKernel.num_process --;
+		UserKernel.Processlock.release();
+		//readVirtualMemory
+		return -1; 	
+	}
 	private int handleExit(int status) {
 	        // Do not remove this call to the autoGrader...
 		Machine.autoGrader().finishingCurrentProcess(status);
@@ -801,7 +841,8 @@ public class UserProcess {
 			return handleRead(a0, a1, a2);
 		case syscallWrite:
 			return handleWrite(a0, a1, a2);
-
+		case syscallExec:
+			return handleExec(a0, a1, a2);
 		default:
 			Lib.debug(dbgProcess, "Unknown syscall " + syscall);
 			Lib.assertNotReached("Unknown system call!");
@@ -855,10 +896,6 @@ public class UserProcess {
 	private int initialPC, initialSP;
 
 	private int argc, argv;
-
-	private int pid;
-
-	private HashMap<Integer, UserProcess> childProcessMap;
 
 	private int childReturnStatus = -1;
 
