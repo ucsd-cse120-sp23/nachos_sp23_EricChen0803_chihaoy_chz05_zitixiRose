@@ -751,16 +751,20 @@ public class UserProcess {
 		// ...and leave it as the top of handleExit so that we
 		// can grade your implementation.
 
-		this.parent.ChildrenPID.remove(this.current_process_id);
+		if (this.parent != null){
+			this.parent.ChildrenPID.remove(this.current_process_id);
+			this.parent.childid_to_childprocess.remove(this.current_process_id);
+		}
 		for (Map.Entry<Integer, UserProcess> entry : childid_to_childprocess.entrySet()) {
 			entry.getValue().parent = null;
 		}
-		this.parent.childid_to_childprocess.remove(this.current_process_id);
 		this.unloadSections();
 		for (int i = 0; i < 15; i++){
 			handleClose(i);
 		}
-		parent.childstatusPID = status;
+		if (this.parent != null){
+			parent.childstatusPID = status;
+		}
 		Lib.debug(dbgProcess, "UserProcess.handleExit (" + status + ")");
 		// for now, unconditionally terminate with just one process
 		 if (UserKernel.num_process == 1){
