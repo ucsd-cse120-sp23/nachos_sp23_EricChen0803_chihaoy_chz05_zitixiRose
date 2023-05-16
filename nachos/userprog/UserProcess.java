@@ -30,6 +30,7 @@ public class UserProcess {
 	public int current_process_id;
 	private ArrayList<OpenFile> fileDescriptor;
 	private LinkedList<Integer> freeList;
+	private int childstatusPID;
 	public UserProcess() {
 		UserKernel.Processlock.acquire();
 		current_process_id = UserKernel.next_process_id;
@@ -697,11 +698,13 @@ public class UserProcess {
 			return -1;
 		}
 		UThread childProcess = childid_to_childprocess.get(processID).thread;
+		UserKernel.lock.release();
 		childProcess.join();
+		UserKernel.lock.acquire();
 		byte[] array = new byte[4];
-		Lib.bytesFromInt(array, 0, childReturnStatus);
+		Lib.bytesFromInt(array, 0, this.childstatusPID);
 		writeVirtualMemory(status_addr, array);
-		if (childReturnStatus==0){
+		if (this.childstatusPID==0){
 			UserKernel.lock.release();
 			return 1;
 		}
@@ -743,14 +746,29 @@ public class UserProcess {
 		return -1; 	
 	}
 	private int handleExit(int status) {
-	        // Do not remove this call to the autoGrader...
+		// Do not remove this call to the autoGrader...
 		Machine.autoGrader().finishingCurrentProcess(status);
 		// ...and leave it as the top of handleExit so that we
 		// can grade your implementation.
 
+		this.parent.ChildrenPID.remove(this.current_process_id);
+		for (Map.Entry<Integer, UserProcess> entry : childid_to_childprocess.entrySet()) {
+			entry.getValue().parent = null;
+		}
+		this.parent.childid_to_childprocess.remove(this.current_process_id);
+		this.unloadSections();
+		for (int i = 0; i < 15; i++){
+			handleClose(i);
+		}
+		parent.childstatusPID = status;
 		Lib.debug(dbgProcess, "UserProcess.handleExit (" + status + ")");
 		// for now, unconditionally terminate with just one process
-		Kernel.kernel.terminate();
+		 if (UserKernel.num_process == 1){
+			 Kernel.kernel.terminate();
+		 } else{
+			this.thread.finish();
+		}
+
 
 		return 0;
 	}
@@ -896,8 +914,6 @@ public class UserProcess {
 	private int initialPC, initialSP;
 
 	private int argc, argv;
-
-	private int childReturnStatus = -1;
 
 	private static final int pageSize = Processor.pageSize;
 
