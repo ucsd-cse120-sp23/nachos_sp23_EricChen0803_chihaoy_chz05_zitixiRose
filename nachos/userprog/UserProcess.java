@@ -747,6 +747,9 @@ public class UserProcess {
 		if (argc <0){
 			return -1;
 		}
+		if (argc >16){
+			return -1;
+		}
 		String[] arguments = new String[argc];
 		byte [] temp = new byte [4];
 		for (int i = 0; i < argc; i++){
