@@ -24,9 +24,17 @@ public class UserProcess {
 	/**
 	 * Allocate a new process.
 	 */
+	private UserProcess parent;
+	private HashMap <Integer,UserProcess> childid_to_childprocess;
+	public int current_process_id;
 	private ArrayList<OpenFile> fileDescriptor;
 	private LinkedList<Integer> freeList;
+	private HashMap <Integer,Integer> childStatusMap;
 	public UserProcess() {
+		UserKernel.Processlock.acquire();
+		current_process_id = UserKernel.next_process_id;
+		UserKernel.next_process_id ++;
+		UserKernel.Processlock.release();
 		int numPhysPages = Machine.processor().getNumPhysPages();
 		pageTable = new TranslationEntry[numPhysPages];
 		for (int i = 0; i < numPhysPages; i++)
@@ -35,8 +43,10 @@ public class UserProcess {
 		fileDescriptor = new ArrayList<OpenFile>(Collections.nCopies(16, null));
 		fileDescriptor.set(0, UserKernel.console.openForReading());
 		fileDescriptor.set(1, UserKernel.console.openForWriting());
+		childid_to_childprocess = new HashMap <Integer,UserProcess>();
+		childStatusMap = new HashMap <Integer,Integer>();
 		freeList = UserKernel.freeList;
-		
+
 	}
 
 	/**
@@ -48,6 +58,9 @@ public class UserProcess {
 	 */
 	public static UserProcess newUserProcess() {
 	        String name = Machine.getProcessClassName ();
+			UserKernel.Processlock.acquire();
+			UserKernel.num_process ++;
+			UserKernel.Processlock.release();
 
 		// If Lib.constructObject is used, it quickly runs out
 		// of file descriptors and throws an exception in
@@ -170,15 +183,15 @@ public class UserProcess {
 			int vpn_offset = Processor.offsetFromAddress(vaddr);
 
 			if (pageTable[vpn] == null){
-				return 0;
+				return -1;
 			}
 			int ppn = pageTable[vpn].ppn;
 			int physcial_address = Processor.makeAddress(ppn, vpn_offset);
 
-			amount = Math.min(length, pageSize);
+			amount = Math.min(length, pageSize-vpn_offset);
 
 			if (physcial_address < 0 || physcial_address >= memory.length)
-				return 0;
+				return -1;
 
 			System.arraycopy(memory, physcial_address, data, offset, amount);
 
@@ -236,7 +249,7 @@ public class UserProcess {
 		// return amount;
 		int transferredBytes = 0;
 		int amount = 0;
-		System.out.println("The length (readBytes) is: " + length);
+		//System.out.println("The length (readBytes) is: " + length);
 
 		byte[] memory = Machine.processor().getMemory();
 		while(length > 0){
@@ -245,21 +258,21 @@ public class UserProcess {
 
 			if (pageTable[vpn].readOnly){
 				//System.out.println("The reason is the page table is read only");
-				return 0;
+				return -1;
 			}
 
 			if (pageTable[vpn] == null){
 				//System.out.println("The reason is the page is null.");
-				return 0;
+				return -1;
 			}
 			int ppn = pageTable[vpn].ppn;
 			int physcial_address = Processor.makeAddress(ppn, vpn_offset);
 
-			amount = Math.min(length, pageSize);
+			amount = Math.min(length, pageSize-vpn_offset);
 
 			if (physcial_address < 0 || physcial_address >= memory.length){
 				//System.out.println("The reason is the pm is invalid.");
-				return 0;
+				return -1;
 			}
 			System.arraycopy(data, offset, memory, vaddr, amount);
 
@@ -270,7 +283,7 @@ public class UserProcess {
 			
 			//how about the offset, very confused on this part.
 		}
-		System.out.println("The transferred Bytes(write bytes): " + transferredBytes);
+		//System.out.println("The transferred Bytes(write bytes): " + transferredBytes);
 
 		return transferredBytes;
 	}
@@ -448,6 +461,9 @@ public class UserProcess {
 	 * Handle the halt() system call.
 	 */
 	private int handleHalt() {
+		if(current_process_id!=0){
+			return -1;
+		}
 
 		Machine.halt();
 
@@ -675,17 +691,122 @@ public class UserProcess {
 	}
 
 	/**
-	 * Handle the exit() system call.
+	 * Handle the join() system call.
 	 */
+	private int handleJoin(int processID, int status_addr){
+		//UserKernel.lock.acquire();
+		System.out.println("PID" + current_process_id);
+		if(this.childid_to_childprocess.get(processID)==null){
+			if (this.childStatusMap.get(processID)==null){
+				//UserKernel.lock.release();
+				return -1;
+			}
+			else if(this.childStatusMap.get(processID)!=20778){
+				//UserKernel.lock.release();
+				byte[] array = new byte[4];
+				Lib.bytesFromInt(array, 0, this.childStatusMap.get(processID));
+				if(writeVirtualMemory(status_addr, array)<0){
+					return -1;
+				}
+				return 1;
+			}
+			byte[] array = new byte[4];
+			Lib.bytesFromInt(array, 0, this.childStatusMap.get(processID));
+			if(writeVirtualMemory(status_addr, array)<0){
+				return -1;
+			}
+			return 0;
+		}
+		UThread childProcess = childid_to_childprocess.get(processID).thread;
+		childProcess.join();
+		byte[] array = new byte[4];
+		Lib.bytesFromInt(array, 0, this.childStatusMap.get(processID));
+		if(writeVirtualMemory(status_addr, array)<0){
+			return -1;
+		}
+		if (this.childStatusMap.get(processID)!=20778){
+			//UserKernel.lock.release();
+			return 1;
+		}
+		else{
+			//UserKernel.lock.release();
+			return 0;
+		}
+	}
+
+	/**
+	 * Handle the exec() system call.
+	 */
+	private int handleExec(int vaddr,int argc,int argv){
+		String filename = readVirtualMemoryString(vaddr,256);	//get the file name by start reading from the first address of the filename
+//Still need to handle corner cases...wait to be done
+		//System.out.println(filename);
+		if (filename==null){
+			return -1;
+		}
+		if (argc <0){
+			return -1;
+		}
+		String[] arguments = new String[argc];
+		byte [] temp = new byte [4];
+		for (int i = 0; i < argc; i++){
+			
+			if(readVirtualMemory(argv+i*4,temp)<0){
+				return -1;
+			}
+			int addr = Lib.bytesToInt(temp,0);
+			//System.out.println(readVirtualMemoryString(addr,256));
+			arguments[i] = readVirtualMemoryString(addr,256);
+		}
+		UserProcess child = UserProcess.newUserProcess();
+		child.parent = this;
+		if (child.execute(filename,arguments)){
+			//userKernel.numProcessLock.acquire();
+			childid_to_childprocess.put(child.current_process_id,child);
+			return child.current_process_id;
+		}
+		UserKernel.Processlock.acquire();
+		UserKernel.num_process --;
+		UserKernel.Processlock.release();
+		//readVirtualMemory
+		return -1; 	
+	}
 	private int handleExit(int status) {
-	        // Do not remove this call to the autoGrader...
+		System.out.println("EXIT PID  "+current_process_id);
+		// Do not remove this call to the autoGrader...
 		Machine.autoGrader().finishingCurrentProcess(status);
 		// ...and leave it as the top of handleExit so that we
 		// can grade your implementation.
 
+		//UserKernel.lock.acquire();
+		if (this.parent != null){
+			this.parent.childid_to_childprocess.remove(this.current_process_id);
+		}
+		//UserKernel.lock.release();
+		for (Map.Entry<Integer, UserProcess> entry : childid_to_childprocess.entrySet()) {
+			entry.getValue().parent = null;
+		}
+		this.unloadSections();
+		for (int i = 0; i < 15; i++){
+			handleClose(i);
+		}
+		//UserKernel.lock.acquire();
+		if (this.parent != null){
+			parent.childStatusMap.remove(this.current_process_id);
+			parent.childStatusMap.put(this.current_process_id, status);
+		}
+		//UserKernel.lock.release();
 		Lib.debug(dbgProcess, "UserProcess.handleExit (" + status + ")");
 		// for now, unconditionally terminate with just one process
-		Kernel.kernel.terminate();
+		 if (UserKernel.num_process == 1){
+			 Kernel.kernel.terminate();
+		 } else{
+			UserKernel.Processlock.acquire();
+			UserKernel.num_process --;
+			UserKernel.Processlock.release();
+			this.thread.finish();
+		}
+
 
 		return 0;
 	}
@@ -764,6 +885,8 @@ public class UserProcess {
 			return handleExit(a0);
 		case syscallCreate:
 			return handleCreate(a0);
+		case syscallJoin:
+			return handleJoin(a0, a1);
 		case syscallOpen:
 			return handleOpen(a0);
 		case syscallUnlink:
@@ -774,7 +897,8 @@ public class UserProcess {
 			return handleRead(a0, a1, a2);
 		case syscallWrite:
 			return handleWrite(a0, a1, a2);
-
+		case syscallExec:
+			return handleExec(a0, a1, a2);
 		default:
 			Lib.debug(dbgProcess, "Unknown syscall " + syscall);
 			Lib.assertNotReached("Unknown system call!");
@@ -804,6 +928,7 @@ public class UserProcess {
 			break;
 
 		default:
+			handleExit(20778);
 			Lib.debug(dbgProcess, "Unexpected exception: "
 					+ Processor.exceptionNames[cause]);
 			Lib.assertNotReached("Unexpected exception");

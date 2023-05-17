@@ -34,6 +34,7 @@ public class UserKernel extends ThreadedKernel {
 		//initialize the freeList here
 		//physical pages is shared resource, so we have to add lock here.
 		lock = new Lock();
+		Processlock = new Lock();
 		int physicalPages = Machine.processor().getNumPhysPages();
 		freeList = new LinkedList<Integer>(); 
 		for (int i = 0; i < physicalPages; i++){
@@ -137,7 +138,9 @@ public class UserKernel extends ThreadedKernel {
 
 	// dummy variables to make javac smarter
 	private static Coff dummy1 = null;
-
+	public static int next_process_id = 0;
+	public static int num_process = 0;
 	public static LinkedList<Integer> freeList;
 	public static Lock lock;
+	public static Lock Processlock;
 }
