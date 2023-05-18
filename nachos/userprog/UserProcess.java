@@ -744,6 +744,14 @@ public class UserProcess {
 		if (filename==null){
 			return -1;
 		}
+		if (filename.length() > 5) {
+			String lastFive = filename.substring(filename.length() - 5);
+			if(!lastFive.equals(".coff")){
+				return -1;
+			}
+		} else {
+			return -1;
+		}
 		if (argc <0){
 			return -1;
 		}
