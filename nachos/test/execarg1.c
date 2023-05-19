@@ -18,7 +18,7 @@ main (int argc, char *argv[])
     int r;
     int childargc = 5;
     char *childargv[5] = {
-	"exit1.coff",
+	"write10.coff",
 	"roses are red",
 	"violets are blue",
 	"I love Nachos",

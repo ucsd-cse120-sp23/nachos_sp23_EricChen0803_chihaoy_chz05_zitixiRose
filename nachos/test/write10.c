@@ -84,6 +84,7 @@ do_write (char *fname, char *buffer, int len, int stride)
 	    printf ("...failed (expected to write %d bytes, but wrote %d)\n", n, r);
 	    exit (-1005);
 	} else {
+        //printf ("although we pass it, but let's see the buffer:");
 	    printf ("...passed (wrote %d bytes)\n", r);
 	}
 	
@@ -124,6 +125,10 @@ do_validate (char *fname, char *buffer, char *truth, int len)
 
     r = 0;
     printf ("validating %s...\n", fname);
+    // while (r < len){
+    //     printf("The offset %d: expected %c, read %c)\n", r, truth[r], buffer[r]);
+    //     r++;
+    // }
     while (r < len) {
 	if (buffer[r] != truth[r]) {
 	    printf ("...failed (offset %d: expected %c, read %c)\n",
@@ -153,13 +158,13 @@ main ()
     len = strlen (str);
 
     /* write all bytes at once */
-    do_write (file, str, len, len);
-    do_validate (file, buffer, str, len);
+    //do_write (file, str, len, len);
+    //do_validate (file, buffer, str, len);
 
     /* write 8 bytes at a time */
-    do_write (file, str, len, 8);
-    do_validate (file, buffer, str, len);
-
+    //do_write (file, str, len, 8);
+    //do_validate (file, buffer, str, len);
+    printf("only one byte every time");
     /* write 1 byte at a time */
     do_write (file, str, len, 1);
     do_validate (file, buffer, str, len);

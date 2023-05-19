@@ -250,7 +250,9 @@ public class UserProcess {
 		int transferredBytes = 0;
 		int amount = 0;
 		//System.out.println("The length (readBytes) is: " + length);
+		//String string = new String(data);
 
+		//System.out.println("In the writeVirtualMemeory the data will be: " + string);
 		byte[] memory = Machine.processor().getMemory();
 		while(length > 0){
 			int vpn = Processor.pageFromAddress(vaddr);
@@ -274,7 +276,8 @@ public class UserProcess {
 				//System.out.println("The reason is the pm is invalid.");
 				return -1;
 			}
-			System.arraycopy(data, offset, memory, vaddr, amount);
+			System.arraycopy(data, offset, memory, physcial_address, amount);
+			//System.out.println("The offset will be: " + offset + " and in this offset, we transfer the");
 
 			length -= amount;
 			transferredBytes += amount;
@@ -509,7 +512,7 @@ public class UserProcess {
 
 		int fd_entry = 0;
 		for (int i = 0; i < 16; i++){
-			System.out.println("The length of fd is: " + fileDescriptor.size());
+			//System.out.println("The length of fd is: " + fileDescriptor.size());
 			if (fileDescriptor.get(i) == null){
 				fd_entry = i;
 				fileDescriptor.set(i, openfile);
@@ -580,9 +583,10 @@ public class UserProcess {
 		int amount = 0;
 
 		//That's the buffer bytes that we use for storing read bytes for every time.
-		byte[] buf = new byte[pageSize];
+		
 
 		while(count > 0){
+			byte[] buf = new byte[pageSize];
 			if (count < pageSize){
 				amount = count;
 			}else {
@@ -612,6 +616,8 @@ public class UserProcess {
 			if (readBytes < amount){
 				break;
 			}
+			//String string = new String(buf);
+			//System.out.println("the buffer will be in read: " + string);
 
 		}
 		return transferredBytes;
@@ -649,10 +655,11 @@ public class UserProcess {
 		int amount = 0;
 
 		//That's the buffer bytes that we use for storing read bytes for every time.
-		byte[] buf = new byte[pageSize];
+		
 		int byte_count = count;
 
 		while(byte_count > 0){
+			byte[] buf = new byte[pageSize];
 			if (byte_count < pageSize){
 				amount = byte_count;
 			}else{
@@ -685,6 +692,7 @@ public class UserProcess {
 			if (writeBytes < amount){
 				break;
 			}
+			//System.out.println("Every time the buffer will be: " + buf);
 
 		}
 		return transferredBytes;
@@ -773,6 +781,7 @@ public class UserProcess {
 		child.parent = this;
 		if (child.execute(filename,arguments)){
 			//userKernel.numProcessLock.acquire();
+			//System.out.println("We can execute it.");
 			childid_to_childprocess.put(child.current_process_id,child);
 			return child.current_process_id;
 		}
@@ -783,7 +792,7 @@ public class UserProcess {
 		return -1; 	
 	}
 	private int handleExit(int status) {
-		System.out.println("EXIT PID  "+current_process_id);
+		//System.out.println("EXIT PID  "+current_process_id);
 		// Do not remove this call to the autoGrader...
 		Machine.autoGrader().finishingCurrentProcess(status);
 		// ...and leave it as the top of handleExit so that we
