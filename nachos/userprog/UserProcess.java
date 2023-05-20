@@ -807,7 +807,7 @@ public class UserProcess {
 			entry.getValue().parent = null;
 		}
 		this.unloadSections();
-		for (int i = 0; i < 15; i++){
+		for (int i = 0; i < 16; i++){
 			handleClose(i);
 		}
 		//UserKernel.lock.acquire();
