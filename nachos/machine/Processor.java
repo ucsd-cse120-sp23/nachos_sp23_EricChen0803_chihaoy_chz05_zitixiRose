@@ -310,12 +310,12 @@ public final class Processor {
 
 		// if not using a TLB, then the vpn is an index into the table
 		if (!usingTLB) {
-			// if (translations == null){
-			// 	System.out.println("translation is null");
-			// }
-			// if (vpn >= translations.length){
-			// 	System.out.println("vpn > length");
-			// }
+			if (translations == null){
+				System.out.println("translation is null");
+			}
+			if (vpn >= translations.length){
+				System.out.println("vpn > length" + vpn);
+			}
 			// if (translations[vpn] == null){
 			// 	System.out.println("translation vpn is null");
 			// }

@@ -810,6 +810,7 @@ public class UserProcess {
 		for (int i = 0; i < 16; i++){
 			handleClose(i);
 		}
+		coff.close();
 		//UserKernel.lock.acquire();
 		if (this.parent != null){
 			parent.childStatusMap.remove(this.current_process_id);
