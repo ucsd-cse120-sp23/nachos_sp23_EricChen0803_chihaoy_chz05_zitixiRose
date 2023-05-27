@@ -82,7 +82,7 @@ public class VMProcess extends UserProcess {
 
 	public void handlePageFault(){
 		Processor processor = Machine.processor();
-		int badVpn = processor.readRegister(Processor.regBadVAddr);
+		int badVpn = Processor.pageFromAddress(Processor.regBadVAddr);
 		boolean flag = false;
 		int mark = 0;
 		/* loop through all sections to check if it is a coff page */
@@ -151,6 +151,9 @@ public class VMProcess extends UserProcess {
 			if(ppn == -1){
 				handleException(Processor.exceptionPageFault);
 			}
+			/*Change dirty bit to 1 */
+			pageTable[vpn].dirty = 1;
+			ppn = pageTable[vpn].ppn;
 			int physcial_address = Processor.makeAddress(ppn, vpn_offset);
 
 			amount = Math.min(length, pageSize-vpn_offset);
@@ -200,6 +203,7 @@ public class VMProcess extends UserProcess {
 			if(ppn == -1){
 				handleException(Processor.exceptionPageFault);
 			}
+			int ppn = pageTable[vpn].ppn;
 			int physcial_address = Processor.makeAddress(ppn, vpn_offset);
 
 			amount = Math.min(length, pageSize-vpn_offset);
