@@ -77,7 +77,9 @@ public class VMProcess extends UserProcess {
 
 		switch (cause) {
 		case 1:
+			System.out.println("We enter the handle exception.");
 			handlePageFault();
+			break;
 		default:
 			super.handleException(cause);
 			break;
@@ -93,28 +95,36 @@ public class VMProcess extends UserProcess {
 		/* loop through all sections to check if it is a coff page */
 		for (int s = 0; s < coff.getNumSections(); s++) {
 			CoffSection section = coff.getSection(s);
-			
+
 				boolean readOnly = section.isReadOnly();
-				for (int i = 0; i < section.getLength(); i++) {
-					int vpn = section.getFirstVPN() + i;
-					int ppn = freeList.remove();
-					mark = ppn;
-					if ( badVpn >= section.getFirstVPN() && badVpn <= section.getFirstVPN()){
-						return;
+				if (badVpn >= section.getFirstVPN() && badVpn < (section.getFirstVPN() + section.getLength())){
+					System.out.println("This is the coff page.");
+					for (int i = 0; i < section.getLength(); i++) {
+						if (section.getFirstVPN() + i == badVpn){
+							int vpn = section.getFirstVPN() + i;
+							int ppn = freeList.remove();
+							pageTable[vpn] = new TranslationEntry(vpn, ppn, true, readOnly, false, false);
+							System.out.println("We already know the pagetable will be the vpn and ppn: " + vpn + " " + ppn);
+							section.loadPage(i, pageTable[vpn].ppn);
+						}
 					}
-					pageTable[vpn] = new TranslationEntry(vpn, ppn, true, readOnly, false, false);
-					section.loadPage(i, pageTable[vpn].ppn);
 				}
-				
+				else {
+					mark++;
+				}
 		}
-		byte[] data = new byte[Processor.pageSize];
-		System.arraycopy(data,0,processor.getMemory(),processor.makeAddress(mark,0),Processor.pageSize);
+		if (mark == coff.getNumSections()){
+			int ppn = freeList.remove();
+			byte[] data = new byte[Processor.pageSize];
+			System.arraycopy(data,0,processor.getMemory(),processor.makeAddress(ppn,0),Processor.pageSize);
+		}
 		/* If this vpn is a coff page */
 		
 		return;
 	}
 
 	public int writeVirtualMemory(int vaddr, byte[] data, int offset, int length) {
+		System.out.println("Can we in the write VM.");
 		Lib.assertTrue(offset >= 0 && length >= 0
 				&& offset + length <= data.length);
 
@@ -179,6 +189,7 @@ public class VMProcess extends UserProcess {
 	}
 
 	public int readVirtualMemory(int vaddr, byte[] data, int offset, int length) {
+		System.out.println("can we in the readvirtualmemory.");
 		Lib.assertTrue(offset >= 0 && length >= 0
 				&& offset + length <= data.length);
 		
