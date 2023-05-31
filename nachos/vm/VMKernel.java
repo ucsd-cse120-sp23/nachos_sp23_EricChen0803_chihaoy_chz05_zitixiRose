@@ -21,6 +21,7 @@ public class VMKernel extends UserKernel {
 	 */
 	public void initialize(String[] args) {
 		super.initialize(args);
+		vmLock = new Lock();
 	}
 
 	/**
@@ -48,4 +49,6 @@ public class VMKernel extends UserKernel {
 	private static VMProcess dummy1 = null;
 
 	private static final char dbgVM = 'v';
+
+	public static Lock vmLock;
 }

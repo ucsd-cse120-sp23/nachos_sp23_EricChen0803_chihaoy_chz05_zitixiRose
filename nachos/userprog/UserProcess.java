@@ -28,7 +28,7 @@ public class UserProcess {
 	private HashMap <Integer,UserProcess> childid_to_childprocess;
 	public int current_process_id;
 	private ArrayList<OpenFile> fileDescriptor;
-	private LinkedList<Integer> freeList;
+	protected LinkedList<Integer> freeList;
 	private HashMap <Integer,Integer> childStatusMap;
 	public UserProcess() {
 		UserKernel.Processlock.acquire();
