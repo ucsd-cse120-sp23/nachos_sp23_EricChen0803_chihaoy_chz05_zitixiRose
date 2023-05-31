@@ -14,6 +14,7 @@ public class VMKernel extends UserKernel {
 	 */
 	public VMKernel() {
 		super();
+		//TODO: initialize the IPT
 	}
 
 	/**
@@ -51,4 +52,7 @@ public class VMKernel extends UserKernel {
 	private static final char dbgVM = 'v';
 
 	public static Lock vmLock;
+
+	//The Inverted page table here. In the VMKernel initialize it.
+	private HashMap <Integer,VMProcess> IPT;
 }

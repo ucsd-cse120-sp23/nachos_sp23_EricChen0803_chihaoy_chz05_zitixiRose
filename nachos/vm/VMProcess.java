@@ -91,6 +91,7 @@ public class VMProcess extends UserProcess {
 		int badVpn = Processor.pageFromAddress(processor.readRegister(Processor.regBadVAddr));
 		System.out.println("badvpn" + badVpn);
 		/* loop through all sections to check if it is a coff page */
+		int ppn = 0;
 		for (int s = 0; s < coff.getNumSections(); s++) {
 			CoffSection section = coff.getSection(s);
 			boolean readOnly = section.isReadOnly();
@@ -99,24 +100,47 @@ public class VMProcess extends UserProcess {
 				for (int i = 0; i < section.getLength(); i++) {
 					if (section.getFirstVPN() + i == badVpn){
 						int vpn = section.getFirstVPN() + i;
-						int ppn = freeList.remove();
-						System.out.println("The valid bit in pagetable vpn is: " + pageTable[vpn].valid);
+						//TODO: do your page replacement algorithm here:
+						if (!freeList.isEmpty()){
+							ppn = freeList.remove();
+						} else{
+							ppn = PageReplacement(vpn);
+						}				
 						pageTable[vpn] = new TranslationEntry(vpn, ppn, true, readOnly, false, false);
-						System.out.println("We already know the pagetable will be the vpn and ppn: " + vpn + " " + ppn);
 						section.loadPage(i, pageTable[vpn].ppn);
 						return; 
 					}
 				}
 			}
 		}
-		System.out.println("in stack page.");
-		int ppn = freeList.remove();
+
+		if (!freeList.isEmpty()){
+			ppn = freeList.remove();
+		} else{
+			ppn = PageReplacement(badVpn);
+		}	
 		byte[] data = new byte[Processor.pageSize];
 		pageTable[badVpn] = new TranslationEntry(badVpn, ppn, true, false, false, false);
 		System.arraycopy(data,0,processor.getMemory(),processor.makeAddress(ppn,0),Processor.pageSize);
 		/* If this vpn is a coff page */
 		
 		return;
+	}
+
+
+	// TODO: finish the pagereplacement algorithm here. Also see the Inverted page table in VMKernel. I also have the IPT_vpn. see the VMprocess in the end.
+	private int PageReplacement(int vpn){
+
+		return 0;
+	}
+
+
+	//TODO: finish the swapping part
+	//if we find this ppn is the victim page we need to remove, and dirty bit is 1, then we move to swapping file.
+	//if you have more time on it. Please do the part in readVirtualMemory. If we find the page is invalid, and dirty is 1,
+	//we need to search from sweaping file. Also writeVirtualMemory.
+	private void swap(int ppn){
+
 	}
 
 	public int writeVirtualMemory(int vaddr, byte[] data, int offset, int length) {
@@ -238,4 +262,6 @@ public class VMProcess extends UserProcess {
 	private static final char dbgProcess = 'a';
 
 	private static final char dbgVM = 'v';
+
+	private int IPT_vpn;
 }
