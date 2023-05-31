@@ -88,36 +88,32 @@ public class VMProcess extends UserProcess {
 
 	public void handlePageFault(){
 		Processor processor = Machine.processor();
-		int badVpn = Processor.pageFromAddress(Processor.regBadVAddr);
+		int badVpn = Processor.pageFromAddress(processor.readRegister(Processor.regBadVAddr));
 		System.out.println("badvpn" + badVpn);
-		boolean flag = false;
-		int mark = 0;
 		/* loop through all sections to check if it is a coff page */
 		for (int s = 0; s < coff.getNumSections(); s++) {
 			CoffSection section = coff.getSection(s);
-
-				boolean readOnly = section.isReadOnly();
-				if (badVpn >= section.getFirstVPN() && badVpn < (section.getFirstVPN() + section.getLength())){
-					System.out.println("This is the coff page.");
-					for (int i = 0; i < section.getLength(); i++) {
-						if (section.getFirstVPN() + i == badVpn){
-							int vpn = section.getFirstVPN() + i;
-							int ppn = freeList.remove();
-							pageTable[vpn] = new TranslationEntry(vpn, ppn, true, readOnly, false, false);
-							System.out.println("We already know the pagetable will be the vpn and ppn: " + vpn + " " + ppn);
-							section.loadPage(i, pageTable[vpn].ppn);
-						}
+			boolean readOnly = section.isReadOnly();
+			if (badVpn >= section.getFirstVPN() && badVpn < (section.getFirstVPN() + section.getLength())){
+				System.out.println("This is the coff page.");
+				for (int i = 0; i < section.getLength(); i++) {
+					if (section.getFirstVPN() + i == badVpn){
+						int vpn = section.getFirstVPN() + i;
+						int ppn = freeList.remove();
+						System.out.println("The valid bit in pagetable vpn is: " + pageTable[vpn].valid);
+						pageTable[vpn] = new TranslationEntry(vpn, ppn, true, readOnly, false, false);
+						System.out.println("We already know the pagetable will be the vpn and ppn: " + vpn + " " + ppn);
+						section.loadPage(i, pageTable[vpn].ppn);
+						return; 
 					}
 				}
-				else {
-					mark++;
-				}
+			}
 		}
-		if (mark == coff.getNumSections()){
-			int ppn = freeList.remove();
-			byte[] data = new byte[Processor.pageSize];
-			System.arraycopy(data,0,processor.getMemory(),processor.makeAddress(ppn,0),Processor.pageSize);
-		}
+		System.out.println("in stack page.");
+		int ppn = freeList.remove();
+		byte[] data = new byte[Processor.pageSize];
+		pageTable[badVpn] = new TranslationEntry(badVpn, ppn, true, false, false, false);
+		System.arraycopy(data,0,processor.getMemory(),processor.makeAddress(ppn,0),Processor.pageSize);
 		/* If this vpn is a coff page */
 		
 		return;
