@@ -4,6 +4,7 @@ import nachos.machine.*;
 import nachos.threads.*;
 import nachos.userprog.*;
 import nachos.vm.*;
+import java.util.*;
 
 /**
  * A <tt>UserProcess</tt> that supports demand-paging.
@@ -77,8 +78,9 @@ public class VMProcess extends UserProcess {
 
 		switch (cause) {
 		case 1:
-			System.out.println("We enter the handle exception.");
-			handlePageFault();
+			//System.out.println("We enter the handle exception.");
+			int badVpn = Processor.pageFromAddress(processor.readRegister(Processor.regBadVAddr));
+			handlePageFault(badVpn);
 			break;
 		default:
 			super.handleException(cause);
@@ -86,9 +88,8 @@ public class VMProcess extends UserProcess {
 		}
 	}
 
-	public void handlePageFault(){
+	public void handlePageFault(int badVpn){
 		Processor processor = Machine.processor();
-		int badVpn = Processor.pageFromAddress(processor.readRegister(Processor.regBadVAddr));
 		System.out.println("badvpn" + badVpn);
 		/* loop through all sections to check if it is a coff page */
 		int ppn = 0;
@@ -108,6 +109,7 @@ public class VMProcess extends UserProcess {
 						}				
 						pageTable[vpn] = new TranslationEntry(vpn, ppn, true, readOnly, false, false);
 						section.loadPage(i, pageTable[vpn].ppn);
+						System.out.println("The ppn in pagefault handler is: " + ppn + " and the vpn is: " + vpn);
 						return; 
 					}
 				}
@@ -138,13 +140,13 @@ public class VMProcess extends UserProcess {
 	//TODO: finish the swapping part
 	//if we find this ppn is the victim page we need to remove, and dirty bit is 1, then we move to swapping file.
 	//if you have more time on it. Please do the part in readVirtualMemory. If we find the page is invalid, and dirty is 1,
-	//we need to search from sweaping file. Also writeVirtualMemory.
+	//we need to search from sweaping file. and put these data back to memory. set the page to valid. Same in writeVirtualMemory.
 	private void swap(int ppn){
 
 	}
 
 	public int writeVirtualMemory(int vaddr, byte[] data, int offset, int length) {
-		System.out.println("Can we in the write VM.");
+		//System.out.println("Can we in the write VM.");
 		Lib.assertTrue(offset >= 0 && length >= 0
 				&& offset + length <= data.length);
 
@@ -180,11 +182,12 @@ public class VMProcess extends UserProcess {
 			}
 			int ppn = pageTable[vpn].ppn;
 			if(ppn == -1){
-				handleException(Processor.exceptionPageFault);
+				handlePageFault(vpn);
 			}
 			/*Change dirty bit to 1 */
 			pageTable[vpn].dirty = true;
 			ppn = pageTable[vpn].ppn;
+			System.out.println("The page number in wvm is: " + ppn + " and the vpn is: " + vpn);
 			int physcial_address = Processor.makeAddress(ppn, vpn_offset);
 
 			amount = Math.min(length, pageSize-vpn_offset);
@@ -209,7 +212,7 @@ public class VMProcess extends UserProcess {
 	}
 
 	public int readVirtualMemory(int vaddr, byte[] data, int offset, int length) {
-		System.out.println("can we in the readvirtualmemory.");
+		//System.out.println("can we in the readvirtualmemory.");
 		Lib.assertTrue(offset >= 0 && length >= 0
 				&& offset + length <= data.length);
 		
@@ -233,7 +236,7 @@ public class VMProcess extends UserProcess {
 			}
 			int ppn = pageTable[vpn].ppn;
 			if(ppn == -1){
-				handleException(Processor.exceptionPageFault);
+				handlePageFault(vpn);
 			}
 			ppn = pageTable[vpn].ppn;
 			int physcial_address = Processor.makeAddress(ppn, vpn_offset);

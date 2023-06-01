@@ -4,6 +4,7 @@ import nachos.machine.*;
 import nachos.threads.*;
 import nachos.userprog.*;
 import nachos.vm.*;
+import java.util.*;
 
 /**
  * A kernel that can support multiple demand-paging user processes.
@@ -14,7 +15,7 @@ public class VMKernel extends UserKernel {
 	 */
 	public VMKernel() {
 		super();
-		//TODO: initialize the IPT
+		
 	}
 
 	/**
@@ -23,6 +24,7 @@ public class VMKernel extends UserKernel {
 	public void initialize(String[] args) {
 		super.initialize(args);
 		vmLock = new Lock();
+		//TODO: initialize the IPT
 	}
 
 	/**
@@ -54,5 +56,5 @@ public class VMKernel extends UserKernel {
 	public static Lock vmLock;
 
 	//The Inverted page table here. In the VMKernel initialize it.
-	private HashMap <Integer,VMProcess> IPT;
+	public static HashMap <Integer,VMProcess> IPT;
 }
