@@ -29,6 +29,7 @@ public final class TranslationEntry {
 			boolean used, boolean dirty) {
 		this.vpn = vpn;
 		this.ppn = ppn;
+		spn = -1;
 		this.valid = valid;
 		this.readOnly = readOnly;
 		this.used = used;
@@ -56,6 +57,7 @@ public final class TranslationEntry {
 	/** The physical page number. */
 	public int ppn;
 
+	public int spn;
 	/**
 	 * If this flag is <tt>false</tt>, this translation entry is ignored.
 	 */

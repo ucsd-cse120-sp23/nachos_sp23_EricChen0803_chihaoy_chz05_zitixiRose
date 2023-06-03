@@ -22,9 +22,19 @@ public class VMKernel extends UserKernel {
 	 * Initialize this kernel.
 	 */
 	public void initialize(String[] args) {
+		int numPhysPages = Machine.processor().getNumPhysPages();
 		super.initialize(args);
 		vmLock = new Lock();
 		//TODO: initialize the IPT
+		victimPage = 0;
+		IPT = new HashMap <Integer, VMProcess>();
+		for (int ppn = 0; ppn < numPhysPages; ppn++){
+			IPT.put(ppn, null);
+		}
+
+		swapfile = ThreadedKernel.fileSystem.open("swapfile",true);//open the swapfile
+  		freeswappagelist = new LinkedList<Integer>();//store the free page number list
+		swappagenumber = 0;
 	}
 
 	/**
@@ -45,7 +55,10 @@ public class VMKernel extends UserKernel {
 	 * Terminate this kernel. Never returns.
 	 */
 	public void terminate() {
+		ThreadedKernel.fileSystem.remove("swapfile");
+		swapfile.close();
 		super.terminate();
+		
 	}
 
 	// dummy variables to make javac smarter
@@ -57,4 +70,13 @@ public class VMKernel extends UserKernel {
 
 	//The Inverted page table here. In the VMKernel initialize it.
 	public static HashMap <Integer,VMProcess> IPT;
+
+	public static int victimPage;
+
+	public static OpenFile swapfile;
+
+	public static LinkedList<Integer> freeswappagelist;
+	
+	public static int swappagenumber;
+	
 }
