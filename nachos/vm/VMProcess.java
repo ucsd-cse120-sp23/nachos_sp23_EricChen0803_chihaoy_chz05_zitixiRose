@@ -63,7 +63,11 @@ public class VMProcess extends UserProcess {
 	 * Release any resources allocated by <tt>loadSections()</tt>.
 	 */
 	protected void unloadSections() {
-		super.unloadSections();
+		for (int i = 0; i < numPages; i++){
+			if (pageTable[i].ppn != -1){
+				freeList.add(pageTable[i].ppn);
+			}
+		}
 	}
 
 	/**
@@ -89,15 +93,49 @@ public class VMProcess extends UserProcess {
 	}
 
 	public void handlePageFault(int badVpn){
+		VMKernel.vmLock.acquire();
 		Processor processor = Machine.processor();
 		System.out.println("badvpn" + badVpn);
 		/* loop through all sections to check if it is a coff page */
 		int ppn = 0;
+		// System.out.println("page table ppn is: " + pageTable[badVpn].ppn);
+		// System.out.println("page table spn is: " + pageTable[badVpn].spn);
+		// System.out.println("page table vaild is: " + pageTable[badVpn].valid);
+		if (badVpn >= numPages - stackPages - 1 && badVpn <= numPages - 1){
+			//check it is in swap file
+			if (pageTable[badVpn].spn != -1){
+				//read from swapfile.
+				System.out.println("any possible to read from swapfile.");
+				int spn = pageTable[badVpn].spn;
+				if (!freeList.isEmpty()){
+					ppn = freeList.remove();
+				} else{
+					ppn = PageReplacement();
+				}
+				VMKernel.swapfile.read(spn*pageSize, processor.getMemory(), ppn*pageSize, pageSize);
+				pageTable[badVpn].spn = -1;
+				VMKernel.vmLock.release();
+				return;
+			}
+			//that's the stack/argument pages.
+			if (!freeList.isEmpty()){
+			ppn = freeList.remove();
+			} else{
+			ppn = PageReplacement();
+			}	
+			VMKernel.IPT.replace(ppn, this);
+			this.IPT_vpn = badVpn; 
+			byte[] data = new byte[Processor.pageSize];
+			//pageTable[badVpn] = new TranslationEntry(badVpn, ppn, true, false, false, false);
+			pageTable[badVpn].valid = true;
+			pageTable[badVpn].ppn = ppn;
+			System.arraycopy(data,0,processor.getMemory(),processor.makeAddress(ppn,0),pageSize);
+			}
+		else {
+			//System.out.println("That's the coff section page.");
 		for (int s = 0; s < coff.getNumSections(); s++) {
 			CoffSection section = coff.getSection(s);
 			boolean readOnly = section.isReadOnly();
-			if (badVpn >= section.getFirstVPN() && badVpn < (section.getFirstVPN() + section.getLength())){
-				System.out.println("This is the coff page.");
 				for (int i = 0; i < section.getLength(); i++) {
 					if (section.getFirstVPN() + i == badVpn){
 						int vpn = section.getFirstVPN() + i;
@@ -109,27 +147,18 @@ public class VMProcess extends UserProcess {
 						}
 						VMKernel.IPT.replace(ppn, this);
 						this.IPT_vpn = vpn; 				
-						pageTable[vpn] = new TranslationEntry(vpn, ppn, true, readOnly, false, false);
+						//pageTable[vpn] = new TranslationEntry(vpn, ppn, true, readOnly, false, false);
+						pageTable[vpn].valid = true;
+						pageTable[vpn].readOnly = readOnly;
+						pageTable[vpn].ppn = ppn;
 						section.loadPage(i, pageTable[vpn].ppn);
-						//System.out.println("The ppn in pagefault handler is: " + ppn + " and the vpn is: " + vpn);
-						return; 
+						System.out.println("The ppn in pagefault handler is: " + ppn + " and the vpn is: " + vpn);
 					}
 				}
-			}
+			
 		}
-
-		if (!freeList.isEmpty()){
-			ppn = freeList.remove();
-		} else{
-			ppn = PageReplacement();
-		}	
-		VMKernel.IPT.replace(ppn, this);
-		this.IPT_vpn = badVpn; 
-		byte[] data = new byte[Processor.pageSize];
-		pageTable[badVpn] = new TranslationEntry(badVpn, ppn, true, false, false, false);
-		System.arraycopy(data,0,processor.getMemory(),processor.makeAddress(ppn,0),Processor.pageSize);
-		/* If this vpn is a coff page */
-		
+		}
+		VMKernel.vmLock.release();
 		return;
 	}
 
@@ -171,13 +200,13 @@ public class VMProcess extends UserProcess {
 	//we need to search from sweaping file. and put these data back to memory. set the page to valid. Same in writeVirtualMemory.
 	private void swap(int ppn){
 		int spn = 0;
-		if (!VMKernel.freeswappagelist.isEmpty()){//if there is free swap page number left, then use this
-			spn = VMKernel.freeswappagelist.removeLast();
-		}
-		else{//else we make a new space
+		// if (!VMKernel.freeswappagelist.isEmpty()){//if there is free swap page number left, then use this
+		// 	spn = VMKernel.freeswappagelist.removeLast();
+		// }
+		//else{//else we make a new space
 			spn = VMKernel.swappagenumber;//swapfile page number
 			VMKernel.swappagenumber ++;//add one to spn
-		}
+		//}
 			
 		VMKernel.swapfile.write(spn*pageSize, Machine.processor().getMemory(), ppn*pageSize, pageSize);//write to swap file
 		//VMkernel.IPT[ppn].entry.vpn = spn;//map from vpn to spn
@@ -186,7 +215,7 @@ public class VMProcess extends UserProcess {
 	}
 
 	public int writeVirtualMemory(int vaddr, byte[] data, int offset, int length) {
-		//System.out.println("Can we in the write VM.");
+		System.out.println("Can we in the write VM.");
 		Lib.assertTrue(offset >= 0 && length >= 0
 				&& offset + length <= data.length);
 
@@ -211,11 +240,6 @@ public class VMProcess extends UserProcess {
 			int vpn = Processor.pageFromAddress(vaddr);
 			int vpn_offset = Processor.offsetFromAddress(vaddr);
 
-			if (pageTable[vpn].readOnly){
-				//System.out.println("The reason is the page table is read only");
-				return -1;
-			}
-
 			if (pageTable[vpn] == null){
 				//System.out.println("The reason is the page is null.");
 				return -1;
@@ -223,16 +247,20 @@ public class VMProcess extends UserProcess {
 			int ppn = pageTable[vpn].ppn;
 			//ppn = -1, spn = anynumber > 0, valid = false. content is in swapfile, but this one is writevm, only need to put the data to memory
 			// we donot need to content in this swapfile.
+			pageTable[vpn].used = true;
 			if(ppn == -1){
 				handlePageFault(vpn);
 			}
 
+			if (pageTable[vpn].readOnly){
+				//System.out.println("The reason is the page table is read only");
+				return -1;
+			}
 			//if ppn != -1, but it is invalid, the ppn is spn, the data is in swapfile. this one is from data to memory.
 			/*Change dirty bit to 1 */
 			pageTable[vpn].dirty = true;
 			ppn = pageTable[vpn].ppn;
-			//get the ppn again, but the dirty is 1, spn > 0, valid = true
-			System.out.println("The page number in wvm is: " + ppn + " and the vpn is: " + vpn);
+			//System.out.println("The page number in wvm is: " + ppn + " and the vpn is: " + vpn);
 			int physcial_address = Processor.makeAddress(ppn, vpn_offset);
 
 			amount = Math.min(length, pageSize-vpn_offset);
@@ -285,27 +313,23 @@ public class VMProcess extends UserProcess {
 				return -1;
 			}
 			int ppn = pageTable[vpn].ppn;
-			if(ppn == -1 && pageTable[vpn].spn == -1){
-				handlePageFault(vpn);
-			}
+			
 			pageTable[vpn].used = true;
 
-			if(pageTable[vpn].valid == false){
-				VMKernel.swapfile.read(pageTable[vpn].ppn*pageSize, data, 0, pageSize);
-				amount = pageSize;
+			if(ppn == -1){
+				handlePageFault(vpn);
 			}
-			else {
-				ppn = pageTable[vpn].ppn;
-				int physcial_address = Processor.makeAddress(ppn, vpn_offset);
+				
+			ppn = pageTable[vpn].ppn;
+			int physcial_address = Processor.makeAddress(ppn, vpn_offset);
 
-				amount = Math.min(length, pageSize-vpn_offset);
+			amount = Math.min(length, pageSize-vpn_offset);
 
-				if (physcial_address < 0 || physcial_address >= memory.length)
-					return -1;
-				System.arraycopy(memory, physcial_address, data, offset, amount);
-			}
+			if (physcial_address < 0 || physcial_address >= memory.length)
+				return -1;
+			System.arraycopy(memory, physcial_address, data, offset, amount);
+
 			
-
 			length -= amount;
 			transferredBytes += amount;
 			vaddr += amount;

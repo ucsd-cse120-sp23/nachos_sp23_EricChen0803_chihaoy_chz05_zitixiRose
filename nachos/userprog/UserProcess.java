@@ -468,6 +468,7 @@ public class UserProcess {
 			return -1;
 		}
 
+		//System.out.println("why you come here.");
 		Machine.halt();
 
 		Lib.assertNotReached("Machine.halt() did not halt machine!");
@@ -554,7 +555,7 @@ public class UserProcess {
 	}
 
 	private int handleRead(int fd, int buffer_address, int count){
-		
+		//System.out.println("handleread.");
 		if (count < 0){
 			return -1;
 		}
@@ -627,6 +628,7 @@ public class UserProcess {
 	private int handleWrite(int fd, int buffer_address, int count){
 		//System.out.println("----------------------------------------");
 		//check the count, is it possible that the count is 0?
+		//System.out.println("handleWrite.");
 		if (count < 0){
 			return -1;
 		}

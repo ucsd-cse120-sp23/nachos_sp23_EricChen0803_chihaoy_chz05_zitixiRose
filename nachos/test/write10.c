@@ -125,10 +125,13 @@ do_validate (char *fname, char *buffer, char *truth, int len)
 
     r = 0;
     printf ("validating %s...\n", fname);
+
     // while (r < len){
     //     printf("The offset %d: expected %c, read %c)\n", r, truth[r], buffer[r]);
     //     r++;
     // }
+
+    //printf("The offset %d: expected %c, read %c)\n", 1792, truth[1792], buffer[1792]);
     while (r < len) {
 	if (buffer[r] != truth[r]) {
 	    printf ("...failed (offset %d: expected %c, read %c)\n",
