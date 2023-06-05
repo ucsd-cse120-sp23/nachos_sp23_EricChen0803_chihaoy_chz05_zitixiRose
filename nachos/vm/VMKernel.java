@@ -31,7 +31,10 @@ public class VMKernel extends UserKernel {
 		for (int ppn = 0; ppn < numPhysPages; ppn++){
 			IPT.put(ppn, null);
 		}
-
+		IPV = new HashMap <Integer, Integer>();
+		for (int ppn = 0; ppn < numPhysPages; ppn++){
+			IPV.put(ppn, -1);
+		}
 		swapfile = ThreadedKernel.fileSystem.open("swapfile",true);//open the swapfile
   		freeswappagelist = new LinkedList<Integer>();//store the free page number list
 		swappagenumber = 0;
@@ -70,6 +73,8 @@ public class VMKernel extends UserKernel {
 
 	//The Inverted page table here. In the VMKernel initialize it.
 	public static HashMap <Integer,VMProcess> IPT;
+
+	public static HashMap <Integer, Integer> IPV;
 
 	public static int victimPage;
 

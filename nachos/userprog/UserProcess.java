@@ -951,10 +951,12 @@ public class UserProcess {
 			break;
 
 		default:
+			
 			handleExit(20778);
 			Lib.debug(dbgProcess, "Unexpected exception: "
 					+ Processor.exceptionNames[cause]);
 			Lib.assertNotReached("Unexpected exception");
+
 		}
 	}
 

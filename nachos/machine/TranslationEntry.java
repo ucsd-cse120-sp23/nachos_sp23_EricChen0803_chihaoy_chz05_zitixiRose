@@ -80,4 +80,8 @@ public final class TranslationEntry {
 	 * user program.
 	 */
 	public boolean dirty;
+
+	public void printString(){
+		System.out.println("for this TE, vpn is: " + vpn + " ppn is: " + ppn + " valid bit is: " + valid + " readOnly is: " + readOnly + " used is: " + used + " dirty is: " + dirty + " spn is: " + spn);
+	}
 }
