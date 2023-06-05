@@ -82,7 +82,7 @@ public class VMProcess extends UserProcess {
 
 		switch (cause) {
 		case 1:
-			System.out.println("We enter the handle exception.");
+			//System.out.println("We enter the handle exception.");
 			int badVpn = Processor.pageFromAddress(processor.readRegister(Processor.regBadVAddr));
 			handlePageFault(badVpn);
 			break;
@@ -96,21 +96,23 @@ public class VMProcess extends UserProcess {
 	public void handlePageFault(int badVpn){
 		VMKernel.vmLock.acquire();
 		Processor processor = Machine.processor();
-		System.out.println("badvpn" + badVpn);
+		//System.out.println("badvpn" + badVpn);
 		/* loop through all sections to check if it is a coff page */
 		int ppn = 0;
 		// System.out.println("page table ppn is: " + pageTable[badVpn].ppn);
 		// System.out.println("page table spn is: " + pageTable[badVpn].spn);
 		// System.out.println("page table vaild is: " + pageTable[badVpn].valid);
+		
 		if (pageTable[badVpn].spn != -1){
 				//read from swapfile.
-				System.out.println("any possible to read from swapfile.");
+				//System.out.println("any possible to read from swapfile.");
 				int spn = pageTable[badVpn].spn;
 				if (!freeList.isEmpty()){
 					ppn = freeList.remove();
 				} else{
 					ppn = PageReplacement();
 				}
+
 				VMKernel.swapfile.read(spn*pageSize, processor.getMemory(), ppn*pageSize, pageSize);
 				pageTable[badVpn].valid = true;
 				pageTable[badVpn].ppn = ppn;
@@ -140,7 +142,7 @@ public class VMProcess extends UserProcess {
 			pageTable[badVpn].valid = true;
 			pageTable[badVpn].ppn = ppn;
 			System.arraycopy(data,0,processor.getMemory(),processor.makeAddress(ppn,0),pageSize);
-			pageTable[badVpn].printString();
+			//pageTable[badVpn].printString();
 			}
 		else {
 			//System.out.println("That's the coff section page.");
@@ -164,8 +166,8 @@ public class VMProcess extends UserProcess {
 						pageTable[vpn].ppn = ppn;
 						section.loadPage(i, pageTable[vpn].ppn);
 						//System.out.println("The ppn in pagefault handler is: " + ppn + " and the vpn is: " + vpn);
-						System.out.println("That's the coff page.");
-						pageTable[vpn].printString();
+						//System.out.println("That's the coff page.");
+						//pageTable[vpn].printString();
 					}
 				}
 			
@@ -178,7 +180,8 @@ public class VMProcess extends UserProcess {
 
 	// TODO: finish the pagereplacement algorithm here. Also see the Inverted page table in VMKernel. I also have the IPT_vpn. see the VMprocess in the end.
 	private int PageReplacement(){
-		System.out.println("Oh, we enter the page replacement function.");
+		VMKernel.pinLock.acquire();
+		//System.out.println("Oh, we enter the page replacement function.");
 		int ppn = 0;
 		int numPhysPages = Machine.processor().getNumPhysPages();
 		while(true) {
@@ -190,10 +193,13 @@ public class VMProcess extends UserProcess {
 			if(VMKernel.IPT.get(VMKernel.victimPage).pageTable[VMKernel.IPV.get(VMKernel.victimPage)].used == false) {
 				
 				ppn = VMKernel.victimPage;
+				while(VMKernel.pinTable[ppn] == true){
+					VMKernel.pinCV.sleep();
+				}
 				if (VMKernel.IPT.get(VMKernel.victimPage).pageTable[VMKernel.IPV.get(VMKernel.victimPage)].dirty == true){
 					swap(ppn);
 				}
-				System.out.println("what is the ppn in pagereplacement is: " + ppn);
+				//System.out.println("what is the ppn in pagereplacement is: " + ppn);
 				VMKernel.victimPage = (VMKernel.victimPage + 1) % numPhysPages;
                 break;
             }
@@ -205,6 +211,7 @@ public class VMProcess extends UserProcess {
         }
 		VMKernel.IPT.get(ppn).pageTable[VMKernel.IPV.get(ppn)].ppn = -1;
 		VMKernel.IPT.get(ppn).pageTable[VMKernel.IPV.get(ppn)].valid = false;
+		VMKernel.pinLock.release();
 		return ppn;
 	}
 
@@ -232,6 +239,7 @@ public class VMProcess extends UserProcess {
 	}
 
 	public int writeVirtualMemory(int vaddr, byte[] data, int offset, int length) {
+		
 		System.out.println("Can we in the write VM.");
 		Lib.assertTrue(offset >= 0 && length >= 0
 				&& offset + length <= data.length);
@@ -273,17 +281,26 @@ public class VMProcess extends UserProcess {
 				//System.out.println("The reason is the page table is read only");
 				return -1;
 			}
+
+			VMKernel.pinLock.acquire(); 
+
 			//if ppn != -1, but it is invalid, the ppn is spn, the data is in swapfile. this one is from data to memory.
 			/*Change dirty bit to 1 */
 			pageTable[vpn].dirty = true;
 			ppn = pageTable[vpn].ppn;
 			//System.out.println("The page number in wvm is: " + ppn + " and the vpn is: " + vpn);
+			
+			VMKernel.pinTable[ppn] = true;
+
 			int physcial_address = Processor.makeAddress(ppn, vpn_offset);
 
 			amount = Math.min(length, pageSize-vpn_offset);
 
 			if (physcial_address < 0 || physcial_address >= memory.length){
 				//System.out.println("The reason is the pm is invalid.");
+				VMKernel.pinTable[ppn] = false;
+				VMKernel.pinCV.wakeAll();
+				VMKernel.pinLock.release();
 				return -1;
 			}
 			System.arraycopy(data, offset, memory, physcial_address, amount);
@@ -294,6 +311,9 @@ public class VMProcess extends UserProcess {
 			vaddr += amount;
 			offset += amount;
 			
+			VMKernel.pinTable[ppn] = false;
+			VMKernel.pinCV.wakeAll();
+			VMKernel.pinLock.release();
 			//how about the offset, very confused on this part.
 		}
 		//System.out.println("The transferred Bytes(write bytes): " + transferredBytes);
@@ -307,7 +327,7 @@ public class VMProcess extends UserProcess {
 		//handlepage fault, store in the swapfile, readvm, find these memory in the swapfile. OK, we read from the swapfile, 
 		//valid this memory again, and put back the memory into physical memory. ask TA.
 
-
+		
 		Lib.assertTrue(offset >= 0 && length >= 0
 				&& offset + length <= data.length);
 		
@@ -338,12 +358,20 @@ public class VMProcess extends UserProcess {
 			}
 				
 			ppn = pageTable[vpn].ppn;
+			VMKernel.pinLock.acquire(); 
+			VMKernel.pinTable[ppn] = true;
+
 			int physcial_address = Processor.makeAddress(ppn, vpn_offset);
 
 			amount = Math.min(length, pageSize-vpn_offset);
 
-			if (physcial_address < 0 || physcial_address >= memory.length)
+			if (physcial_address < 0 || physcial_address >= memory.length){
+				VMKernel.pinTable[ppn] = false;
+				VMKernel.pinCV.wakeAll();
+				VMKernel.pinLock.release(); 
 				return -1;
+			}
+				
 			System.arraycopy(memory, physcial_address, data, offset, amount);
 
 			
@@ -352,6 +380,9 @@ public class VMProcess extends UserProcess {
 			vaddr += amount;
 			offset += amount;
 			
+			VMKernel.pinTable[ppn] = false;
+			VMKernel.pinCV.wakeAll();
+			VMKernel.pinLock.release(); 
 			//how about the offset, very confused on this part.
 		}
 		

@@ -35,9 +35,15 @@ public class VMKernel extends UserKernel {
 		for (int ppn = 0; ppn < numPhysPages; ppn++){
 			IPV.put(ppn, -1);
 		}
+		pinTable = new Boolean[numPhysPages];
+		for (int i = 0; i < numPhysPages; i++){
+			pinTable[i] = false;
+		}
 		swapfile = ThreadedKernel.fileSystem.open("swapfile",true);//open the swapfile
   		freeswappagelist = new LinkedList<Integer>();//store the free page number list
 		swappagenumber = 0;
+		pinLock = new Lock();
+		pinCV = new Condition(pinLock);
 	}
 
 	/**
@@ -83,5 +89,11 @@ public class VMKernel extends UserKernel {
 	public static LinkedList<Integer> freeswappagelist;
 	
 	public static int swappagenumber;
+
+	public static Condition pinCV;
+
+	public static Lock pinLock;
+
+	public static Boolean[] pinTable; 
 	
 }
