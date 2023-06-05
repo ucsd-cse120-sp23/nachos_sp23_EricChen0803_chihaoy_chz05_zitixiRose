@@ -117,6 +117,7 @@ public class VMProcess extends UserProcess {
 				VMKernel.IPT.replace(ppn, this);
 				VMKernel.IPV.replace(ppn, badVpn);
 				//check this part later. change dirty to false.
+				VMKernel.freeswappagelist.add(spn);
 				pageTable[badVpn].printString();
 				pageTable[badVpn].dirty = false;
 				pageTable[badVpn].spn = -1;
@@ -216,13 +217,13 @@ public class VMProcess extends UserProcess {
 		System.out.println("Hey, I am in the swap now.");
 		System.out.println("The page table vpn in swap is: " + VMKernel.IPT.get(ppn).pageTable[VMKernel.IPV.get(ppn)].vpn + "readonly is: " + VMKernel.IPT.get(ppn).pageTable[VMKernel.IPV.get(ppn)].readOnly);
 		int spn = 0;
-		// if (!VMKernel.freeswappagelist.isEmpty()){//if there is free swap page number left, then use this
-		// 	spn = VMKernel.freeswappagelist.removeLast();
-		// }
-		//else{//else we make a new space
+		if (!VMKernel.freeswappagelist.isEmpty()){//if there is free swap page number left, then use this
+			spn = VMKernel.freeswappagelist.removeLast();
+		}
+		else{//else we make a new space
 			spn = VMKernel.swappagenumber;//swapfile page number
 			VMKernel.swappagenumber ++;//add one to spn
-		//}
+		}
 			
 		VMKernel.swapfile.write(spn*pageSize, Machine.processor().getMemory(), ppn*pageSize, pageSize);//write to swap file
 		//VMkernel.IPT[ppn].entry.vpn = spn;//map from vpn to spn
