@@ -121,7 +121,6 @@ public class VMProcess extends UserProcess {
 				//check this part later. change dirty to false.
 				VMKernel.freeswappagelist.add(spn);
 				pageTable[badVpn].printString();
-				pageTable[badVpn].dirty = false;
 				pageTable[badVpn].spn = -1;
 				
 				VMKernel.vmLock.release();
