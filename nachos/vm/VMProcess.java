@@ -176,6 +176,15 @@ public class VMProcess extends UserProcess {
 		return;
 	}
 
+	private boolean allPagePinned(){
+		int numPhysPages = Machine.processor().getNumPhysPages();
+		for (int i = 0; i < numPhysPages; i++){
+			if (VMKernel.pinTable[i] == false){
+				return false;
+			}
+		}
+		return true;
+	}
 
 	// TODO: finish the pagereplacement algorithm here. Also see the Inverted page table in VMKernel. I also have the IPT_vpn. see the VMprocess in the end.
 	private int PageReplacement(){
@@ -189,16 +198,18 @@ public class VMProcess extends UserProcess {
             //     continue;
             // }
 
-			if(VMKernel.IPT.get(VMKernel.victimPage).pageTable[VMKernel.IPV.get(VMKernel.victimPage)].used == false) {
+			while(allPagePinned()){
+				VMKernel.pinCV.sleep();
+			}
+
+			if(VMKernel.IPT.get(VMKernel.victimPage).pageTable[VMKernel.IPV.get(VMKernel.victimPage)].used == false && !VMKernel.pinTable[VMKernel.victimPage]) {
 				
 				ppn = VMKernel.victimPage;
-				while(VMKernel.pinTable[ppn] == true){
-					VMKernel.pinCV.sleep();
-				}
 				if (VMKernel.IPT.get(VMKernel.victimPage).pageTable[VMKernel.IPV.get(VMKernel.victimPage)].dirty == true){
 					swap(ppn);
 				}
 				//System.out.println("what is the ppn in pagereplacement is: " + ppn);
+				VMKernel.IPT.get(VMKernel.victimPage).pageTable[VMKernel.IPV.get(VMKernel.victimPage)].used = true;
 				VMKernel.victimPage = (VMKernel.victimPage + 1) % numPhysPages;
                 break;
             }
